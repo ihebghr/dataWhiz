@@ -9,29 +9,15 @@ import Papa from "papaparse";
 import * as XLSX from "xlsx";
 import fs from "fs";
 import Groq from "groq-sdk";
+import os from "os";
 
 const app = express();
-const PORT = 3000;
+const PORT = process.env.PORT || 3000;
 
-// Diagnostics for local setup
-console.log("--- API Key Diagnostics ---");
-console.log("Current working directory:", process.cwd());
-console.log(".env file exists in cwd:", fs.existsSync(path.join(process.cwd(), '.env')));
-console.log("GROQ_API_KEY present in env:", !!process.env.GROQ_API_KEY);
-if (process.env.GROQ_API_KEY) {
-  const key = String(process.env.GROQ_API_KEY);
-  console.log("GROQ_API_KEY starts with:", key.substring(0, 4) + "...");
-}
-console.log("---------------------------");
+// Vercel compatibility: use /tmp for uploads
+const upload = multer({ dest: os.tmpdir() });
 
 app.use(express.json({ limit: '50mb' }));
-
-const upload = multer({ dest: 'uploads/' });
-
-// Ensure uploads directory exists
-if (!fs.existsSync('uploads')) {
-  fs.mkdirSync('uploads');
-}
 
 // API routes
 app.post("/api/upload", upload.single('file'), (req, res) => {
@@ -41,7 +27,6 @@ app.post("/api/upload", upload.single('file'), (req, res) => {
 
   const filePath = req.file.path;
   const fileName = req.file.originalname;
-  const mimeType = req.file.mimetype;
   const extension = path.extname(fileName).toLowerCase();
 
   try {
@@ -67,15 +52,15 @@ app.post("/api/upload", upload.single('file'), (req, res) => {
     }
 
     // Clean up temporary file
-    fs.unlinkSync(filePath);
+    if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
 
     res.json({
       fileName,
       size: req.file.size,
       rows: data.length,
       columns: data.length > 0 ? Object.keys(data[0]).length : 0,
-      preview: data.slice(0, 50), // Send first 50 rows for preview
-      fullData: data // In a real app we might store this in a session or DB
+      preview: data.slice(0, 50),
+      fullData: data
     });
   } catch (error: any) {
     console.error("Upload error:", error);
@@ -98,7 +83,6 @@ app.post("/api/profile", (req, res) => {
     const allValues = data.map(row => row[col]);
     const missingCount = allValues.length - values.length;
     
-    // Type detection (simple)
     let type = 'string';
     if (values.length > 0) {
       const firstVal = values[0];
@@ -126,7 +110,6 @@ app.post("/api/profile", (req, res) => {
         stats.median = nums[Math.floor(nums.length / 2)];
       }
     } else {
-      // Frequency dist
       const freq : any = {};
       values.forEach(v => { freq[v] = (freq[v] || 0) + 1; });
       stats.topValues = Object.entries(freq).sort((a:any, b:any) => b[1] - a[1]).slice(0, 5);
@@ -138,7 +121,6 @@ app.post("/api/profile", (req, res) => {
   res.json(profile);
 });
 
-// AI endpoints
 app.post("/api/ai/generate", async (req, res) => {
   const { prompt } = req.body;
 
@@ -160,15 +142,12 @@ app.post("/api/ai/generate", async (req, res) => {
       return res.json({ text: completion.choices[0]?.message?.content });
     } else {
       return res.status(401).json({ 
-        error: "Groq API key not configured. Please check your .env file and ensure GROQ_API_KEY is set." 
+        error: "Groq API key not configured." 
       });
     }
   } catch (error: any) {
-    console.error("AI Generation error details:", error);
-    res.status(500).json({ 
-      error: `AI Error: ${error.message || 'Unknown error'}`,
-      details: error.stack
-    });
+    console.error("AI Generation error:", error);
+    res.status(500).json({ error: `AI Error: ${error.message || 'Unknown error'}` });
   }
 });
 
@@ -187,9 +166,14 @@ async function startServer() {
     });
   }
 
-  app.listen(PORT, "0.0.0.0", () => {
-    console.log(`Server running on http://0.0.0.0:${PORT}`);
-  });
+  // Only listen if not in a serverless environment
+  if (!process.env.VERCEL) {
+    app.listen(PORT, "0.0.0.0", () => {
+      console.log(`Server running on http://0.0.0.0:${PORT}`);
+    });
+  }
 }
 
 startServer();
+
+export default app;
