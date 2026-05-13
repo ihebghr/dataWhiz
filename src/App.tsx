@@ -16,7 +16,7 @@ import {
 } from 'lucide-react';
 
 import { extractJSON } from './lib/aiUtils';
-import { auth, loginWithGoogle } from './lib/firebase';
+import { auth, loginWithGoogle, handleRedirectResult } from './lib/firebase';
 import { onAuthStateChanged, signOut, User } from 'firebase/auth';
 import { uploadToGoogleDrive, convertToCSV } from './lib/driveService';
 import { jsPDF } from 'jspdf';
@@ -61,6 +61,9 @@ export default function App() {
   const [lastUploadedFileName, setLastUploadedFileName] = useState('');
 
   useEffect(() => {
+    // Handle redirect result for mobile/deployed logins
+    handleRedirectResult().catch(console.error);
+
     const unsubscribe = onAuthStateChanged(auth, (u) => {
       setUser(u);
       setAuthLoading(false);
