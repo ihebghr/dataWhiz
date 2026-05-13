@@ -14,10 +14,17 @@ import os from "os";
 const app = express();
 const PORT = Number(process.env.PORT) || 3000;
 
-// Vercel compatibility: use /tmp for uploads
-const upload = multer({ dest: os.tmpdir() });
-
+// Increase limit for URL encoded bodies as well
+app.use(express.urlencoded({ limit: '50mb', extended: true }));
 app.use(express.json({ limit: '50mb' }));
+
+// Vercel compatibility: use /tmp for uploads
+const upload = multer({ 
+  dest: os.tmpdir(),
+  limits: {
+    fileSize: 50 * 1024 * 1024 // 50MB limit
+  }
+});
 
 // API routes
 app.post("/api/upload", upload.single('file'), (req, res) => {
