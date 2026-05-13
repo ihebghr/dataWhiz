@@ -4,9 +4,9 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "tsx server.ts",
-    "build": "vite build && esbuild server.ts --bundle --platform=node --format=esm --outdir=dist --packages=external --allow-overwrite",
-    "start": "NODE_ENV=production node dist/server.js",
+    "dev": "tsx api/index.ts",
+    "build": "vite build",
+    "start": "NODE_ENV=production tsx api/index.ts",
     "clean": "rm -rf dist",
     "lint": "tsc --noEmit"
   },
