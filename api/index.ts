@@ -159,7 +159,7 @@ app.post("/api/ai/generate", async (req, res) => {
 });
 
 async function startServer() {
-  // Only start the server if we're not on Vercel
+  // Check for Vercel environment to handle serverless execution correctly
   if (!process.env.VERCEL) {
     if (process.env.NODE_ENV !== "production") {
       const vite = await createViteServer({
