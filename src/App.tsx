@@ -19,7 +19,7 @@ import { extractJSON } from './lib/aiUtils';
 import { auth, loginWithGoogle } from './lib/firebase';
 import { onAuthStateChanged, signOut, User } from 'firebase/auth';
 import { uploadToGoogleDrive, convertToCSV } from './lib/driveService';
-import jsPDF from 'jspdf';
+import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
 import DataPreview from './components/DataPreview';
@@ -432,24 +432,6 @@ export default function App() {
         alert("Expert AI analyzed the data and found it to be within quality thresholds.");
       }
     } catch (err: any) { alert(`Expert Clean failed: ${err.message || 'Unknown error'}`); }
-    finally { setIsQuickCleaning(false); setIsProcessing(false); }
-  }, [profile, data]);
-
-      if (appliedLogs.length > 0) {
-        setPastStates(prev => [...prev, data]);
-        setData(currentData);
-        setHistory(prev => [...appliedLogs, ...prev]);
-        const p = await (await fetch('/api/profile', { 
-          method: 'POST', 
-          headers: { 'Content-Type': 'application/json' }, 
-          body: JSON.stringify({ data: currentData }) 
-        })).json();
-        setProfile(p);
-        setView('profile');
-      } else {
-        alert("AI suggested changes that are already applied or couldn't be processed.");
-      }
-    } catch (err: any) { alert(`Quick Clean failed: ${err.message || 'Unknown error'}`); }
     finally { setIsQuickCleaning(false); setIsProcessing(false); }
   }, [profile, data]);
 
