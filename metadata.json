@@ -1,0 +1,11 @@
+{
+  "name": "DataWhiz AI",
+  "description": "An automated and interactive data cleaning platform that empowers users to profile, transform, and clean datasets using AI-driven suggestions.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "Data Profiling",
+    "Automated Cleaning",
+    "AI Recommendations",
+    "Multi-format Support"
+  ]
+}

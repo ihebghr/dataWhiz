@@ -1,0 +1,72 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile information",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "email": { "type": "string" },
+        "displayName": { "type": "string" },
+        "photoURL": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "email"]
+    },
+    "Project": {
+      "title": "Project",
+      "description": "Metadata for a dataset upload",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "size": { "type": "number" },
+        "rowsCount": { "type": "number" },
+        "colsCount": { "type": "number" },
+        "ownerId": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name", "ownerId", "createdAt"]
+    },
+    "Row": {
+      "title": "Row",
+      "description": "A single row in the dataset",
+      "type": "object",
+      "properties": {
+        "data": { "type": "object" },
+        "index": { "type": "number" }
+      },
+      "required": ["data", "index"]
+    },
+    "ActionLog": {
+      "title": "ActionLog",
+      "description": "Record of a cleaning action",
+      "type": "object",
+      "properties": {
+        "type": { "type": "string" },
+        "column": { "type": "string" },
+        "timestamp": { "type": "number" },
+        "description": { "type": "string" }
+      },
+      "required": ["type", "timestamp", "description"]
+    }
+  },
+  "firestore": {
+    "users/{userId}": {
+      "schema": "User",
+      "description": "User profiles"
+    },
+    "projects/{projectId}": {
+      "schema": "Project",
+      "description": "Dataset metadata"
+    },
+    "projects/{projectId}/rows/{rowId}": {
+      "schema": "Row",
+      "description": "Individual dataset rows"
+    },
+    "projects/{projectId}/history/{historyId}": {
+      "schema": "ActionHistory",
+      "description": "History of actions for this project"
+    }
+  }
+}

@@ -1,0 +1,195 @@
+import dotenv from "dotenv";
+dotenv.config();
+
+import express from "express";
+import path from "path";
+import { createServer as createViteServer } from "vite";
+import multer from "multer";
+import Papa from "papaparse";
+import * as XLSX from "xlsx";
+import fs from "fs";
+import Groq from "groq-sdk";
+
+const app = express();
+const PORT = 3000;
+
+// Diagnostics for local setup
+console.log("--- API Key Diagnostics ---");
+console.log("Current working directory:", process.cwd());
+console.log(".env file exists in cwd:", fs.existsSync(path.join(process.cwd(), '.env')));
+console.log("GROQ_API_KEY present in env:", !!process.env.GROQ_API_KEY);
+if (process.env.GROQ_API_KEY) {
+  const key = String(process.env.GROQ_API_KEY);
+  console.log("GROQ_API_KEY starts with:", key.substring(0, 4) + "...");
+}
+console.log("---------------------------");
+
+app.use(express.json({ limit: '50mb' }));
+
+const upload = multer({ dest: 'uploads/' });
+
+// Ensure uploads directory exists
+if (!fs.existsSync('uploads')) {
+  fs.mkdirSync('uploads');
+}
+
+// API routes
+app.post("/api/upload", upload.single('file'), (req, res) => {
+  if (!req.file) {
+    return res.status(400).json({ error: "No file uploaded" });
+  }
+
+  const filePath = req.file.path;
+  const fileName = req.file.originalname;
+  const mimeType = req.file.mimetype;
+  const extension = path.extname(fileName).toLowerCase();
+
+  try {
+    let data : any[] = [];
+    if (extension === '.csv') {
+      const fileContent = fs.readFileSync(filePath, 'utf8');
+      const results = Papa.parse(fileContent, { header: true, skipEmptyLines: true });
+      data = results.data;
+    } else if (extension === '.xlsx' || extension === '.xls') {
+      const fileBuffer = fs.readFileSync(filePath);
+      const workbook = XLSX.read(fileBuffer, { type: 'buffer' });
+      const sheetName = workbook.SheetNames[0];
+      if (!sheetName) {
+         throw new Error("Excel file has no sheets");
+      }
+      data = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName]);
+    } else if (extension === '.json') {
+      const fileContent = fs.readFileSync(filePath, 'utf8');
+      data = JSON.parse(fileContent);
+    } else {
+      console.error(`Unsupported extension: ${extension}`);
+      return res.status(400).json({ error: "Unsupported file format" });
+    }
+
+    // Clean up temporary file
+    fs.unlinkSync(filePath);
+
+    res.json({
+      fileName,
+      size: req.file.size,
+      rows: data.length,
+      columns: data.length > 0 ? Object.keys(data[0]).length : 0,
+      preview: data.slice(0, 50), // Send first 50 rows for preview
+      fullData: data // In a real app we might store this in a session or DB
+    });
+  } catch (error: any) {
+    console.error("Upload error:", error);
+    if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+    res.status(500).json({ error: `Failed to process file: ${error.message}` });
+  }
+});
+
+app.post("/api/profile", (req, res) => {
+  const { data } = req.body;
+  if (!data || !Array.isArray(data)) {
+    return res.status(400).json({ error: "Invalid data" });
+  }
+
+  const columns = Object.keys(data[0] || {});
+  const profile: any = {};
+
+  columns.forEach(col => {
+    const values = data.map(row => row[col]).filter(v => v !== undefined && v !== null && v !== '');
+    const allValues = data.map(row => row[col]);
+    const missingCount = allValues.length - values.length;
+    
+    // Type detection (simple)
+    let type = 'string';
+    if (values.length > 0) {
+      const firstVal = values[0];
+      if (typeof firstVal === 'number') type = 'number';
+      else if (!isNaN(Date.parse(firstVal as any)) && isNaN(Number(firstVal))) type = 'datetime';
+      else if (typeof firstVal === 'boolean') type = 'boolean';
+    }
+
+    const uniqueValues = new Set(values).size;
+    
+    const stats: any = {
+      type,
+      missingCount,
+      missingPercentage: ((missingCount / allValues.length) * 100).toFixed(2),
+      uniqueCount: uniqueValues,
+    };
+
+    if (type === 'number') {
+      const nums = values.map(v => Number(v)).filter(n => !isNaN(n));
+      if (nums.length > 0) {
+        nums.sort((a, b) => a - b);
+        stats.min = nums[0];
+        stats.max = nums[nums.length - 1];
+        stats.mean = (nums.reduce((a, b) => a + b, 0) / nums.length).toFixed(2);
+        stats.median = nums[Math.floor(nums.length / 2)];
+      }
+    } else {
+      // Frequency dist
+      const freq : any = {};
+      values.forEach(v => { freq[v] = (freq[v] || 0) + 1; });
+      stats.topValues = Object.entries(freq).sort((a:any, b:any) => b[1] - a[1]).slice(0, 5);
+    }
+
+    profile[col] = stats;
+  });
+
+  res.json(profile);
+});
+
+// AI endpoints
+app.post("/api/ai/generate", async (req, res) => {
+  const { prompt } = req.body;
+
+  try {
+    const cleanKey = (key: string | undefined) => {
+      if (!key) return undefined;
+      return key.trim().replace(/^["']|["']$/g, '');
+    };
+
+    const groqKey = cleanKey(process.env.GROQ_API_KEY);
+
+    if (groqKey) {
+      const groq = new Groq({ apiKey: groqKey });
+      const completion = await groq.chat.completions.create({
+        messages: [{ role: "user", content: prompt }],
+        model: "llama-3.3-70b-versatile",
+        response_format: { type: "json_object" }
+      });
+      return res.json({ text: completion.choices[0]?.message?.content });
+    } else {
+      return res.status(401).json({ 
+        error: "Groq API key not configured. Please check your .env file and ensure GROQ_API_KEY is set." 
+      });
+    }
+  } catch (error: any) {
+    console.error("AI Generation error details:", error);
+    res.status(500).json({ 
+      error: `AI Error: ${error.message || 'Unknown error'}`,
+      details: error.stack
+    });
+  }
+});
+
+async function startServer() {
+  if (process.env.NODE_ENV !== "production") {
+    const vite = await createViteServer({
+      server: { middlewareMode: true },
+      appType: "spa",
+    });
+    app.use(vite.middlewares);
+  } else {
+    const distPath = path.join(process.cwd(), "dist");
+    app.use(express.static(distPath));
+    app.get("*", (req, res) => {
+      res.sendFile(path.join(distPath, "index.html"));
+    });
+  }
+
+  app.listen(PORT, "0.0.0.0", () => {
+    console.log(`Server running on http://0.0.0.0:${PORT}`);
+  });
+}
+
+startServer();
