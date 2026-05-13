@@ -12,7 +12,7 @@ import Groq from "groq-sdk";
 import os from "os";
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = Number(process.env.PORT) || 3000;
 
 // Vercel compatibility: use /tmp for uploads
 const upload = multer({ dest: os.tmpdir() });
