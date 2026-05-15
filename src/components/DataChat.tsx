@@ -41,7 +41,7 @@ export default function DataChat({ data, profile }: DataChatProps) {
     setIsLoading(true);
 
     try {
-      // Create a context from a sample of the data (limit to avoid token issues)
+      // Use a sample of the data for context
       const context = data.slice(0, 100); 
       
       const response = await fetch('/api/ai/chat', {
@@ -71,7 +71,7 @@ export default function DataChat({ data, profile }: DataChatProps) {
       const errorMessage: Message = {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
-        content: "I'm sorry, I encountered an error while analyzing your data. Please try again.",
+        content: "I encountered an error analyzing your data. Please check your connection or try a simpler question.",
         timestamp: Date.now(),
       };
       setMessages(prev => [...prev, errorMessage]);
@@ -89,12 +89,12 @@ export default function DataChat({ data, profile }: DataChatProps) {
           </div>
           <div>
             <h3 className="text-sm font-bold text-slate-900">Data Assistant</h3>
-            <p className="text-[10px] text-slate-500 font-medium uppercase tracking-wider">Powered by RAG</p>
+            <p className="text-[10px] text-slate-500 font-medium uppercase tracking-wider">Smart Context Analysis</p>
           </div>
         </div>
         <div className="flex items-center gap-1.5 px-2 py-1 bg-[#0d9488]/10 text-[#0d9488] rounded-full">
           <Sparkles className="w-3 h-3" />
-          <span className="text-[10px] font-bold uppercase">Ready</span>
+          <span className="text-[10px] font-bold uppercase">Active</span>
         </div>
       </div>
 
@@ -107,9 +107,9 @@ export default function DataChat({ data, profile }: DataChatProps) {
             <div className="w-12 h-12 rounded-2xl bg-slate-100 flex items-center justify-center mb-4">
               <Bot className="w-6 h-6 text-slate-400" />
             </div>
-            <h4 className="text-sm font-bold text-slate-900 mb-1">Ask me anything about your data</h4>
+            <h4 className="text-sm font-bold text-slate-900 mb-1">How can I help with your data?</h4>
             <p className="text-xs text-slate-500 leading-relaxed max-w-[200px]">
-              I can help you find trends, calculate totals, or summarize your dataset.
+              Ask about trends, summaries, or specific values in your dataset.
             </p>
           </div>
         )}
@@ -148,7 +148,7 @@ export default function DataChat({ data, profile }: DataChatProps) {
               <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center">
                 <Loader2 className="w-4 h-4 animate-spin" />
               </div>
-              <span className="text-[10px] font-bold uppercase tracking-widest">Analyzing...</span>
+              <span className="text-[10px] font-bold uppercase tracking-widest">Processing...</span>
             </div>
           </motion.div>
         )}
@@ -163,21 +163,18 @@ export default function DataChat({ data, profile }: DataChatProps) {
             type="text"
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            placeholder="Ask about your data..."
+            placeholder="Ask a question about your dataset..."
             className="w-full pl-4 pr-12 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#0d9488]/20 focus:border-[#0d9488] transition-all"
             disabled={isLoading}
           />
           <button
             type="submit"
             disabled={!input.trim() || isLoading}
-            className="absolute right-2 p-2 bg-[#0d9488] text-white rounded-lg hover:bg-[#0c857a] disabled:opacity-50 disabled:hover:bg-[#0d9488] transition-all"
+            className="absolute right-2 p-2 bg-[#0d9488] text-white rounded-lg hover:bg-[#0c857a] disabled:opacity-50 transition-all"
           >
             <Send className="w-4 h-4" />
           </button>
         </form>
-        <p className="mt-2 text-[9px] text-slate-400 text-center font-medium">
-          Note: I analyze a sample of your data to provide answers.
-        </p>
       </div>
     </div>
   );
