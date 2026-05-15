@@ -12,8 +12,7 @@ import {
   User as UserIcon,
   LogOut,
   Cloud,
-  Lock,
-  MessageSquare
+  Lock
 } from 'lucide-react';
 
 import { extractJSON } from './lib/aiUtils';
@@ -28,7 +27,6 @@ import Profiling from './components/Profiling';
 import CleaningActions from './components/CleaningActions';
 import ActionHistory from './components/ActionHistory';
 import AISuggestions from './components/AISuggestions';
-import DataChat from './components/DataChat';
 import Navbar from './components/Navbar';
 import Hero from './components/Hero';
 import SuccessModal from './components/SuccessModal';
@@ -53,7 +51,7 @@ export default function App() {
   const [profile, setProfile] = useState<any | null>(null);
   const [history, setHistory] = useState<ActionLog[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [view, setView] = useState<'preview' | 'profile' | 'cleaning' | 'chat'>('preview');
+  const [view, setView] = useState<'preview' | 'profile' | 'cleaning'>('preview');
   const [isQuickCleaning, setIsQuickCleaning] = useState(false);
   const [activeCleaningColumn, setActiveCleaningColumn] = useState<string | null>(null);
   const [showAuthModal, setShowAuthModal] = useState(false);
@@ -226,23 +224,60 @@ export default function App() {
         }))
       }, null, 2);
       
-      const SYSTEM_PROMPT = `You are an expert data engineer. Analyze the dataset summary and provide a cleaning plan.
+      const SYSTEM_PROMPT = `You are a principal data engineer with 20 years of production experience 
+ across financial systems, healthcare records, e-commerce pipelines, and IoT sensor data. 
  
- GOAL: 0% missing values while keeping 100% of rows.
+ Your governing principle: DATA IS INNOCENT UNTIL PROVEN CORRUPT. 
+ Every row has value. Every drop must be justified like deleting production records. 
  
- AVAILABLE ACTIONS: 
- - ENCODING_FIX: Repair characters.
- - SMART_FIX: Normalize separators/types.
- - CAST_TYPE: Convert to int/date.
- - IMPUTE: Fill nulls (mean/median/mode).
- - FILL_SENTINEL: Fill nulls with "UNKNOWN" or 0.
- - STANDARDIZE: Trim and lowercase strings.
- - REMOVE_DUPLICATES: Remove exact duplicate rows.
+ CRITICAL: The user's Quality Score depends on DATA COMPLETENESS. 
+ Dropping rows KILLS the score. You MUST preserve the total row count.
+ 
+ ══════════════════════════════════════════════════════ 
+ PHASE 0 — FORENSIC RECONNAISSANCE 
+ ══════════════════════════════════════════════════════ 
+ Classify every column and detect locale-specific formatting traps.
+ 
+ ══════════════════════════════════════════════════════ 
+ PHASE 1 — ENCODING AND STRUCTURAL REPAIR 
+ ══════════════════════════════════════════════════════ 
+ ENCODING_FIX: Repair mojibake and control characters.
+ 
+ ══════════════════════════════════════════════════════ 
+ PHASE 2 — SEPARATOR AND TYPE NORMALIZATION 
+ ══════════════════════════════════════════════════════ 
+ SMART_FIX: Normalize separators (dot/comma) dataset-wide. 
+ CAST_TYPE: Convert to correct semantic type.
+ 
+ ══════════════════════════════════════════════════════ 
+ PHASE 3 — NULL STRATEGY (COMPLETENESS FIRST)
+ ══════════════════════════════════════════════════════ 
+ - NEVER drop rows for missing values. 
+ - If null% < 30% → use IMPUTE (median for numeric, mode for categorical).
+ - If null% > 30% → use FILL_SENTINEL (e.g., "UNKNOWN", "MISSING", 0, -1).
+ - Goal: 0% missing values while KEEPING 100% of rows.
+ 
+ ══════════════════════════════════════════════════════ 
+ PHASE 4 — OUTLIER AND CONSTRAINT REPAIR 
+ ══════════════════════════════════════════════════════ 
+ SMART_FIX: Round fractional ages, handle impossible values (age < 0).
+ 
+ ══════════════════════════════════════════════════════ 
+ PHASE 5 — NORMALIZATION 
+ ══════════════════════════════════════════════════════ 
+ STANDARDIZE: Lowercase + trim categorical strings.
+ 
+ ══════════════════════════════════════════════════════ 
+ PHASE 6 — VALIDATION 
+ ══════════════════════════════════════════════════════ 
+ If any action would drop rows, REVISE to use FILL_SENTINEL.
+ 
+ AVAILABLE ACTIONS: ENCODING_FIX, SMART_FIX, CAST_TYPE, IMPUTE, FILL_SENTINEL, STANDARDIZE, REMOVE_DUPLICATES.
  
  DATASET SUMMARY:
  ${summary}
  
- OUTPUT: Return a JSON object with an "actions" array.
+ OUTPUT: Valid JSON only.
  {
    "actions": [
      { "order": 1, "type": "ACTION_TYPE", "column": "col_name", "action": "description", "reason": "why" }
@@ -660,7 +695,7 @@ export default function App() {
                 </div>
                 <div className="px-6 mb-4"><h3 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Operations</h3></div>
                 <nav className="space-y-1">
-                  {([{id:'preview',label:'Data Preview',icon:LayoutDashboard},{id:'profile',label:'Profiling',icon:BarChart3},{id:'cleaning',label:'Cleaning',icon:Wand2},{id:'chat',label:'Data Chat',icon:MessageSquare}] as const).map(t => (
+                  {([{id:'preview',label:'Data Preview',icon:LayoutDashboard},{id:'profile',label:'Profiling',icon:BarChart3},{id:'cleaning',label:'Cleaning',icon:Wand2}] as const).map(t => (
                     <button key={t.id} onClick={() => setView(t.id as any)}
                       className={`w-full flex items-center gap-3 px-6 py-3 text-sm font-medium transition-all ${view===t.id?'bg-[#1e293b] text-white border-l-4 border-[#2dd4bf]':'hover:bg-[#1e293b]/50 hover:text-white border-l-4 border-transparent'}`}>
                       <t.icon className="w-4 h-4" /> {t.label}
@@ -765,15 +800,6 @@ export default function App() {
                         </div>
                         <DataPreview data={data} />
                       </div>
-                    </motion.div>
-                  )}
-                  {view === 'chat' && (
-                    <motion.div key="ch" initial={{opacity:0,y:10}} animate={{opacity:1,y:0}} exit={{opacity:0,y:-10}} className="max-w-4xl mx-auto">
-                      <div className="mb-8 text-center">
-                        <h2 className="text-2xl font-bold text-slate-900 mb-2">Chat with your Data</h2>
-                        <p className="text-slate-500 text-sm">Ask questions, find trends, or give cleaning commands like "make uppercase".</p>
-                      </div>
-                      <DataChat data={data} profile={profile} onApplyActions={handleChatApplyActions} />
                     </motion.div>
                   )}
                 </AnimatePresence>
