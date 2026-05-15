@@ -3,7 +3,6 @@ dotenv.config();
 
 import express from "express";
 import path from "path";
-import { createServer as createViteServer } from "vite";
 import multer from "multer";
 import Papa from "papaparse";
 import * as XLSX from "xlsx";
@@ -12,7 +11,6 @@ import Groq from "groq-sdk";
 import os from "os";
 
 const app = express();
-const PORT = Number(process.env.PORT) || 3000;
 
 // Increase limit for URL encoded bodies as well
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
@@ -132,12 +130,7 @@ app.post("/api/ai/generate", async (req, res) => {
   const { prompt } = req.body;
 
   try {
-    const cleanKey = (key: string | undefined) => {
-      if (!key) return undefined;
-      return key.trim().replace(/^["']|["']$/g, '');
-    };
-
-    const groqKey = cleanKey(process.env.GROQ_API_KEY);
+    const groqKey = process.env.GROQ_API_KEY;
 
     if (groqKey) {
       const groq = new Groq({ apiKey: groqKey });
@@ -148,39 +141,18 @@ app.post("/api/ai/generate", async (req, res) => {
       });
       return res.json({ text: completion.choices[0]?.message?.content });
     } else {
+      console.error("GROQ_API_KEY is missing from environment variables");
       return res.status(401).json({ 
-        error: "Groq API key not configured." 
+        error: "Server configuration error: Groq API key is missing. Please add it to your Vercel Environment Variables." 
       });
     }
   } catch (error: any) {
-    console.error("AI Generation error:", error);
-    res.status(500).json({ error: `AI Error: ${error.message || 'Unknown error'}` });
-  }
-});
-
-async function startServer() {
-  // Check for Vercel environment to handle serverless execution correctly
-  if (!process.env.VERCEL) {
-    if (process.env.NODE_ENV !== "production") {
-      const vite = await createViteServer({
-        server: { middlewareMode: true },
-        appType: "spa",
-      });
-      app.use(vite.middlewares);
-    } else {
-      const distPath = path.join(process.cwd(), "dist");
-      app.use(express.static(distPath));
-      app.get("*", (req, res) => {
-        res.sendFile(path.join(distPath, "index.html"));
-      });
-    }
-
-    app.listen(PORT, "0.0.0.0", () => {
-      console.log(`Server running on http://0.0.0.0:${PORT}`);
+    console.error("AI Generation error details:", error);
+    res.status(500).json({ 
+      error: "AI generation failed", 
+      details: error.message || 'Unknown error'
     });
   }
-}
-
-startServer();
+});
 
 export default app;
