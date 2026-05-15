@@ -12,7 +12,8 @@ import {
   User as UserIcon,
   LogOut,
   Cloud,
-  Lock
+  Lock,
+  MessageSquare
 } from 'lucide-react';
 
 import { extractJSON } from './lib/aiUtils';
@@ -27,6 +28,7 @@ import Profiling from './components/Profiling';
 import CleaningActions from './components/CleaningActions';
 import ActionHistory from './components/ActionHistory';
 import AISuggestions from './components/AISuggestions';
+import DataChat from './components/DataChat';
 import Navbar from './components/Navbar';
 import Hero from './components/Hero';
 import SuccessModal from './components/SuccessModal';
@@ -51,7 +53,7 @@ export default function App() {
   const [profile, setProfile] = useState<any | null>(null);
   const [history, setHistory] = useState<ActionLog[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [view, setView] = useState<'preview' | 'profile' | 'cleaning'>('preview');
+  const [view, setView] = useState<'preview' | 'profile' | 'cleaning' | 'chat'>('preview');
   const [isQuickCleaning, setIsQuickCleaning] = useState(false);
   const [activeCleaningColumn, setActiveCleaningColumn] = useState<string | null>(null);
   const [showAuthModal, setShowAuthModal] = useState(false);
@@ -590,7 +592,7 @@ export default function App() {
                 </div>
                 <div className="px-6 mb-4"><h3 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Operations</h3></div>
                 <nav className="space-y-1">
-                  {([{id:'preview',label:'Data Preview',icon:LayoutDashboard},{id:'profile',label:'Profiling',icon:BarChart3},{id:'cleaning',label:'Cleaning',icon:Wand2}] as const).map(t => (
+                  {([{id:'preview',label:'Data Preview',icon:LayoutDashboard},{id:'profile',label:'Profiling',icon:BarChart3},{id:'cleaning',label:'Cleaning',icon:Wand2},{id:'chat',label:'Data Chat',icon:MessageSquare}] as const).map(t => (
                     <button key={t.id} onClick={() => setView(t.id as any)}
                       className={`w-full flex items-center gap-3 px-6 py-3 text-sm font-medium transition-all ${view===t.id?'bg-[#1e293b] text-white border-l-4 border-[#2dd4bf]':'hover:bg-[#1e293b]/50 hover:text-white border-l-4 border-transparent'}`}>
                       <t.icon className="w-4 h-4" /> {t.label}
@@ -695,6 +697,15 @@ export default function App() {
                         </div>
                         <DataPreview data={data} />
                       </div>
+                    </motion.div>
+                  )}
+                  {view === 'chat' && (
+                    <motion.div key="ch" initial={{opacity:0,y:10}} animate={{opacity:1,y:0}} exit={{opacity:0,y:-10}} className="max-w-4xl mx-auto">
+                      <div className="mb-8 text-center">
+                        <h2 className="text-2xl font-bold text-slate-900 mb-2">Chat with your Data</h2>
+                        <p className="text-slate-500 text-sm">Ask questions, find trends, or get summaries using our AI Data Assistant.</p>
+                      </div>
+                      <DataChat data={data} profile={profile} />
                     </motion.div>
                   )}
                 </AnimatePresence>

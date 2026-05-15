@@ -170,4 +170,48 @@ app.post("/api/ai/generate", async (req, res) => {
   }
 });
 
+app.post("/api/ai/chat", async (req, res) => {
+  const { question, context, profile } = req.body;
+
+  try {
+    const groqKey = process.env.GROQ_API_KEY;
+    if (!groqKey) {
+      return res.status(401).json({ error: "Groq API key is missing." });
+    }
+
+    const groq = new Groq({ apiKey: groqKey });
+    
+    const systemPrompt = `You are DataWhiz AI, a sophisticated data analyst assistant. 
+    You help users understand their datasets by providing insights, summaries, and answering specific questions based on the data provided.
+    
+    DATASET PROFILE SUMMARY:
+    ${JSON.stringify(profile)}
+    
+    DATASET SAMPLE (Relevant Rows):
+    ${JSON.stringify(context)}
+    
+    INSTRUCTIONS:
+    1. Base your answers ONLY on the provided dataset profile and sample.
+    2. If the user asks for something not present in the data, politely inform them.
+    3. Use a professional yet conversational tone.
+    4. Format your response using Markdown (bold, lists, etc.) for better readability.
+    5. If the user asks for calculations (e.g., total, average), perform them using the provided data if possible.
+    6. Keep responses concise but informative.`;
+
+    const completion = await groq.chat.completions.create({
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: question }
+      ],
+      model: "llama-3.1-8b-instant",
+      temperature: 0.2, // Lower temperature for more factual responses
+    });
+
+    return res.json({ response: completion.choices[0]?.message?.content });
+  } catch (error: any) {
+    console.error("Chat error:", error);
+    res.status(500).json({ error: "Failed to process chat request", details: error.message });
+  }
+});
+
 export default app;
