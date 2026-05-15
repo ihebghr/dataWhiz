@@ -480,10 +480,11 @@ export default function App() {
         changed = true;
         desc = `AI OUTLIER CLEAN: ${action}`;
       }
-    } else if (la.includes('lower') || la.includes('standardize') || la.includes('trim')) {
-      updatedData = data!.map(r => ({ ...r, [column]: String(r[column] || '').toLowerCase().trim() }));
+    } else if (la.includes('lower') || la.includes('standardize') || la.includes('trim') || la.includes('uppercase')) {
+      const isUpper = la.includes('uppercase');
+      updatedData = data!.map(r => ({ ...r, [column]: isUpper ? String(r[column] || '').toUpperCase().trim() : String(r[column] || '').toLowerCase().trim() }));
       changed = true;
-      desc = `Standardized ${column}`;
+      desc = `${isUpper ? 'Uppercased' : 'Standardized'} ${column}`;
     } else if (la.includes('drop missing') || la.includes('remove missing')) {
       updatedData = data!.filter(r => r[column] !== null && r[column] !== '' && r[column] !== undefined);
       changed = true;
@@ -537,6 +538,73 @@ export default function App() {
       alert("AI Suggestion: " + action + "\nTry applying this manually.");
     }
   }, [data, profile, handleApplyAction]);
+
+  const handleChatApplyActions = useCallback((actions: any[]) => {
+    if (!data) return;
+    setIsProcessing(true);
+    
+    let currentData = [...data];
+    const logs: ActionLog[] = [];
+    
+    for (const act of actions) {
+      const { column, type, action: actionDesc } = act;
+      const la = (actionDesc || '').toLowerCase();
+      const lt = (type || '').toUpperCase();
+      let changed = false;
+      let logDesc = actionDesc;
+
+      if (lt === 'ENCODING_FIX' || la.includes('encoding')) {
+        currentData = currentData.map(r => {
+          let val = String(r[column] || '');
+          val = val.replace(/Ã©/g, 'é').replace(/â€™/g, "'").replace(/â€œ/g, '"');
+          val = val.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '');
+          return { ...r, [column]: val.trim() };
+        });
+        changed = true;
+      } else if (lt === 'IMPUTE' || lt === 'FILL_SENTINEL' || la.includes('impute') || la.includes('fill')) {
+        const s = profile[column];
+        let fillVal = la.includes('mean') ? Number(s?.mean) : (la.includes('median') ? Number(s?.median || s?.mean) : (s?.topValues?.[0]?.[0] || 'UNKNOWN'));
+        currentData = currentData.map(r => ({ ...r, [column]: (r[column] === null || r[column] === '' || r[column] === undefined) ? fillVal : r[column] }));
+        changed = true;
+      } else if (lt === 'STANDARDIZE' || la.includes('standardize') || la.includes('lower') || la.includes('trim') || la.includes('uppercase')) {
+        const isUpper = la.includes('uppercase');
+        currentData = currentData.map(r => ({ ...r, [column]: isUpper ? String(r[column] || '').toUpperCase().trim() : String(r[column] || '').toLowerCase().trim() }));
+        changed = true;
+      } else if (lt === 'CAST_TYPE' || la.includes('cast')) {
+        if (la.includes('int')) {
+          currentData = currentData.map(r => {
+            const num = parseFloat(String(r[column] || '').replace(',', '.'));
+            return isNaN(num) ? r : { ...r, [column]: Math.round(num) };
+          });
+          changed = true;
+        }
+      } else if (lt === 'REMOVE_DUPLICATES' || la.includes('duplicate')) {
+        const initial = currentData.length;
+        const seen = new Set();
+        currentData = currentData.filter(r => {
+          const s = JSON.stringify(r);
+          if (seen.has(s)) return false;
+          seen.add(s);
+          return true;
+        });
+        if (currentData.length < initial) changed = true;
+      }
+
+      if (changed) {
+        logs.push({ id: Math.random().toString(36).substr(2, 9), type: 'AI_CHAT_CLEAN', column, timestamp: Date.now(), description: logDesc });
+      }
+    }
+
+    if (logs.length > 0) {
+      setPastStates(prev => [...prev, data]);
+      setData(currentData);
+      setHistory(prev => [...logs, ...prev]);
+      fetch('/api/profile', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ data: currentData }) })
+        .then(r => r.json()).then(p => setProfile(p)).finally(() => setIsProcessing(false));
+    } else {
+      setIsProcessing(false);
+    }
+  }, [data, profile]);
 
   return (
     <div className="h-screen bg-[#f8fafc] text-[#1e293b] font-sans selection:bg-[#2dd4bf] selection:text-[#0f172a] overflow-hidden flex">
@@ -703,9 +771,9 @@ export default function App() {
                     <motion.div key="ch" initial={{opacity:0,y:10}} animate={{opacity:1,y:0}} exit={{opacity:0,y:-10}} className="max-w-4xl mx-auto">
                       <div className="mb-8 text-center">
                         <h2 className="text-2xl font-bold text-slate-900 mb-2">Chat with your Data</h2>
-                        <p className="text-slate-500 text-sm">Ask questions, find trends, or get summaries using our AI Data Assistant.</p>
+                        <p className="text-slate-500 text-sm">Ask questions, find trends, or give cleaning commands like "make uppercase".</p>
                       </div>
-                      <DataChat data={data} profile={profile} />
+                      <DataChat data={data} profile={profile} onApplyActions={handleChatApplyActions} />
                     </motion.div>
                   )}
                 </AnimatePresence>

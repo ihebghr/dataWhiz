@@ -171,7 +171,7 @@ app.post("/api/ai/generate", async (req, res) => {
 });
 
 app.post("/api/ai/chat", async (req, res) => {
-  const { question, context, profile } = req.body;
+  const { question, context, profile, isCleaningRequest = false } = req.body;
 
   try {
     const groqKey = process.env.GROQ_API_KEY;
@@ -181,22 +181,57 @@ app.post("/api/ai/chat", async (req, res) => {
 
     const groq = new Groq({ apiKey: groqKey });
     
-    const systemPrompt = `You are DataWhiz AI, a sophisticated data analyst assistant. 
-    You help users understand their datasets by providing insights, summaries, and answering specific questions based on the data provided.
+    let systemPrompt = "";
     
-    DATASET PROFILE SUMMARY:
-    ${JSON.stringify(profile)}
-    
-    DATASET SAMPLE (Relevant Rows):
-    ${JSON.stringify(context)}
-    
-    INSTRUCTIONS:
-    1. Base your answers ONLY on the provided dataset profile and sample.
-    2. If the user asks for something not present in the data, politely inform them.
-    3. Use a professional yet conversational tone.
-    4. Format your response using Markdown (bold, lists, etc.) for better readability.
-    5. If the user asks for calculations (e.g., total, average), perform them using the provided data if possible.
-    6. Keep responses concise but informative.`;
+    if (isCleaningRequest) {
+      systemPrompt = `You are a Data Engineering Expert. The user wants to perform specific cleaning or transformation actions on their dataset.
+      
+      DATASET PROFILE:
+      ${JSON.stringify(profile)}
+      
+      INSTRUCTIONS:
+      1. Analyze the user's request and map it to one or more of these AVAILABLE ACTIONS:
+         - ENCODING_FIX: Repair characters.
+         - SMART_FIX: Normalize separators/types.
+         - CAST_TYPE: Convert to int/date/float.
+         - IMPUTE: Fill nulls (mean/median/mode).
+         - FILL_SENTINEL: Fill nulls with "UNKNOWN" or 0.
+         - STANDARDIZE: Trim and lowercase strings.
+         - REMOVE_DUPLICATES: Remove exact duplicate rows.
+         - DROP_MISSING: Remove rows with missing values (use sparingly).
+      
+      2. If the request is a cleaning instruction, your response MUST be a valid JSON object with an "actions" array.
+      3. Each action must include: "order", "type", "column" (or "all"), "action" (description), and "reason".
+      
+      FORMAT:
+      {
+        "isAction": true,
+        "message": "I will apply these changes for you...",
+        "actions": [
+          { "order": 1, "type": "ACTION_TYPE", "column": "col_name", "action": "description", "reason": "why" }
+        ]
+      }`;
+    } else {
+      systemPrompt = `You are DataWhiz AI, a sophisticated data analyst assistant. 
+      You help users understand their datasets by providing insights, summaries, and answering questions.
+      
+      DATASET PROFILE SUMMARY:
+      ${JSON.stringify(profile)}
+      
+      DATASET SAMPLE:
+      ${JSON.stringify(context)}
+      
+      INSTRUCTIONS:
+      1. If the user's message looks like a cleaning instruction (e.g., "clean", "fix", "uppercase", "remove"), set "isAction" to true and ask them to confirm if they want you to generate a cleaning plan.
+      2. Otherwise, answer their question normally.
+      3. Your response must be a JSON object with "message" and "isAction" (boolean).
+      
+      FORMAT:
+      {
+        "isAction": false,
+        "message": "Your answer in Markdown here..."
+      }`;
+    }
 
     const completion = await groq.chat.completions.create({
       messages: [
@@ -204,10 +239,12 @@ app.post("/api/ai/chat", async (req, res) => {
         { role: "user", content: question }
       ],
       model: "llama-3.1-8b-instant",
-      temperature: 0.2,
+      response_format: { type: "json_object" },
+      temperature: 0.1,
     });
 
-    return res.json({ response: completion.choices[0]?.message?.content });
+    const content = JSON.parse(completion.choices[0]?.message?.content || "{}");
+    return res.json(content);
   } catch (error: any) {
     console.error("Chat error:", error);
     res.status(500).json({ error: "Failed to process chat request", details: error.message });
