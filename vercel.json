@@ -2,6 +2,10 @@
   "version": 2,
   "rewrites": [
     {
+      "source": "/api/ai/chat",
+      "destination": "/api/chat.py"
+    },
+    {
       "source": "/api/(.*)",
       "destination": "/api/index.ts"
     },
