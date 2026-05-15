@@ -127,27 +127,42 @@ app.post("/api/profile", (req, res) => {
 });
 
 app.post("/api/ai/generate", async (req, res) => {
-  const { prompt } = req.body;
+  const { prompt, model = "llama-3.1-8b-instant" } = req.body;
 
   try {
     const groqKey = process.env.GROQ_API_KEY;
 
     if (groqKey) {
       const groq = new Groq({ apiKey: groqKey });
+      
+      // Use a faster model by default for better Vercel compatibility (10s timeout)
       const completion = await groq.chat.completions.create({
-        messages: [{ role: "user", content: prompt }],
-        model: "llama-3.3-70b-versatile",
-        response_format: { type: "json_object" }
+        messages: [
+          { 
+            role: "system", 
+            content: "You are a data cleaning assistant. Always return valid JSON objects." 
+          },
+          { role: "user", content: prompt }
+        ],
+        model: model,
+        response_format: { type: "json_object" },
+        temperature: 0.1, // Lower temperature for more consistent JSON
       });
-      return res.json({ text: completion.choices[0]?.message?.content });
+
+      const content = completion.choices[0]?.message?.content;
+      if (!content) {
+        throw new Error("AI returned an empty response");
+      }
+
+      return res.json({ text: content });
     } else {
       console.error("GROQ_API_KEY is missing from environment variables");
       return res.status(401).json({ 
-        error: "Server configuration error: Groq API key is missing. Please add it to your Vercel Environment Variables." 
+        error: "Groq API key is missing. Please add GROQ_API_KEY to your Vercel Environment Variables." 
       });
     }
   } catch (error: any) {
-    console.error("AI Generation error details:", error);
+    console.error("AI Generation error:", error);
     res.status(500).json({ 
       error: "AI generation failed", 
       details: error.message || 'Unknown error'

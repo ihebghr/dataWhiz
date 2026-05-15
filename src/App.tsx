@@ -224,84 +224,62 @@ export default function App() {
         }))
       }, null, 2);
       
-      const SYSTEM_PROMPT = `You are a principal data engineer with 20 years of production experience 
- across financial systems, healthcare records, e-commerce pipelines, and IoT sensor data. 
+      const SYSTEM_PROMPT = `You are an expert data engineer. Analyze the dataset summary and provide a cleaning plan.
  
- Your governing principle: DATA IS INNOCENT UNTIL PROVEN CORRUPT. 
- Every row has value. Every drop must be justified like deleting production records. 
+ GOAL: 0% missing values while keeping 100% of rows.
  
- CRITICAL: The user's Quality Score depends on DATA COMPLETENESS. 
- Dropping rows KILLS the score. You MUST preserve the total row count.
- 
- ══════════════════════════════════════════════════════ 
- PHASE 0 — FORENSIC RECONNAISSANCE 
- ══════════════════════════════════════════════════════ 
- Classify every column and detect locale-specific formatting traps.
- 
- ══════════════════════════════════════════════════════ 
- PHASE 1 — ENCODING AND STRUCTURAL REPAIR 
- ══════════════════════════════════════════════════════ 
- ENCODING_FIX: Repair mojibake and control characters.
- 
- ══════════════════════════════════════════════════════ 
- PHASE 2 — SEPARATOR AND TYPE NORMALIZATION 
- ══════════════════════════════════════════════════════ 
- SMART_FIX: Normalize separators (dot/comma) dataset-wide. 
- CAST_TYPE: Convert to correct semantic type.
- 
- ══════════════════════════════════════════════════════ 
- PHASE 3 — NULL STRATEGY (COMPLETENESS FIRST)
- ══════════════════════════════════════════════════════ 
- - NEVER drop rows for missing values. 
- - If null% < 30% → use IMPUTE (median for numeric, mode for categorical).
- - If null% > 30% → use FILL_SENTINEL (e.g., "UNKNOWN", "MISSING", 0, -1).
- - Goal: 0% missing values while KEEPING 100% of rows.
- 
- ══════════════════════════════════════════════════════ 
- PHASE 4 — OUTLIER AND CONSTRAINT REPAIR 
- ══════════════════════════════════════════════════════ 
- SMART_FIX: Round fractional ages, handle impossible values (age < 0).
- 
- ══════════════════════════════════════════════════════ 
- PHASE 5 — NORMALIZATION 
- ══════════════════════════════════════════════════════ 
- STANDARDIZE: Lowercase + trim categorical strings.
- 
- ══════════════════════════════════════════════════════ 
- PHASE 6 — VALIDATION 
- ══════════════════════════════════════════════════════ 
- If any action would drop rows, REVISE to use FILL_SENTINEL.
- 
- AVAILABLE ACTIONS: ENCODING_FIX, SMART_FIX, CAST_TYPE, IMPUTE, FILL_SENTINEL, STANDARDIZE, REMOVE_DUPLICATES.
+ AVAILABLE ACTIONS: 
+ - ENCODING_FIX: Repair characters.
+ - SMART_FIX: Normalize separators/types.
+ - CAST_TYPE: Convert to int/date.
+ - IMPUTE: Fill nulls (mean/median/mode).
+ - FILL_SENTINEL: Fill nulls with "UNKNOWN" or 0.
+ - STANDARDIZE: Trim and lowercase strings.
+ - REMOVE_DUPLICATES: Remove exact duplicate rows.
  
  DATASET SUMMARY:
  ${summary}
  
- OUTPUT: Valid JSON only.
+ OUTPUT: Return a JSON object with an "actions" array.
  {
    "actions": [
-     { "phase": 0, "order": 1, "type": "ENCODING_FIX", "column": "col", "action": "desc", "reason": "...", "priority": "high" }
+     { "order": 1, "type": "ACTION_TYPE", "column": "col_name", "action": "description", "reason": "why" }
    ]
  }`;
 
       const aiResponse = await fetch('/api/ai/generate', { 
         method: 'POST', 
         headers: { 'Content-Type': 'application/json' }, 
-        body: JSON.stringify({ prompt: SYSTEM_PROMPT }) 
+        body: JSON.stringify({ 
+          prompt: SYSTEM_PROMPT,
+          model: "llama-3.1-8b-instant" // Force faster model for Quick Clean to avoid Vercel timeouts
+        }) 
       });
 
       if (!aiResponse.ok) { 
         const t = await aiResponse.text(); 
         let m = 'AI request failed'; 
         try { m = JSON.parse(t).error || m; } catch(e){m=t||m;} 
-        throw new Error(m); 
+        throw new Error(`API Error (${aiResponse.status}): ${m}`); 
       }
       
       const aiData = await aiResponse.json();
+      if (!aiData.text) {
+        throw new Error("AI returned no plan. Please try again.");
+      }
+
       const plan = extractJSON(aiData.text);
-      const actions = plan.actions || plan;
+      const actions = plan.actions || (Array.isArray(plan) ? plan : null);
       
-      if (!Array.isArray(actions)) throw new Error('AI response was not an array');
+      if (!actions || !Array.isArray(actions)) {
+        console.error("Invalid AI plan:", plan);
+        throw new Error('AI response was not in the expected format (array of actions)');
+      }
+      
+      if (actions.length === 0) {
+        alert("Expert AI analyzed the data and found it to be within quality thresholds.");
+        return;
+      }
       
       let currentData = [...data]; 
       const appliedLogs: ActionLog[] = [];
@@ -309,12 +287,15 @@ export default function App() {
 
       for (const action of sortedActions) {
         const { column, type, action: actionDesc } = action; 
+        if (!column || !data[0] || (!data[0].hasOwnProperty(column) && column !== 'all')) continue;
+
         const la = (actionDesc || '').toLowerCase();
         const lt = (type || '').toUpperCase();
         let changed = false;
         let logDesc = actionDesc;
 
-        if (lt === 'ENCODING_FIX') {
+        // More robust matching including substrings
+        if (lt === 'ENCODING_FIX' || la.includes('encoding') || la.includes('character')) {
           currentData = currentData.map(r => {
             let val = String(r[column] || '');
             val = val.replace(/Ã©/g, 'é').replace(/â€™/g, "'").replace(/â€œ/g, '"');
@@ -324,7 +305,7 @@ export default function App() {
           changed = true;
           logDesc = `Encoding repair on ${column}`;
         }
-        else if (lt === 'IMPUTE' || lt === 'FILL_SENTINEL' || la.includes('impute') || la.includes('fill')) {
+        else if (lt === 'IMPUTE' || lt === 'FILL_SENTINEL' || la.includes('impute') || la.includes('fill') || la.includes('null')) {
           const s = profile[column];
           if (s) {
             let fillVal: any = null;
@@ -340,12 +321,12 @@ export default function App() {
             logDesc = `Filled missing ${column} with ${fillVal}`;
           }
         } 
-        else if (lt === 'STANDARDIZE' || la.includes('standardize') || la.includes('lower') || la.includes('trim')) {
+        else if (lt === 'STANDARDIZE' || la.includes('standardize') || la.includes('lower') || la.includes('trim') || la.includes('format')) {
           currentData = currentData.map(r => ({ ...r, [column]: String(r[column] || '').toLowerCase().trim().replace(/\s+/g, ' ') }));
           changed = true;
           logDesc = `Standardized ${column}`;
         }
-        else if (lt === 'SMART_FIX' || la.includes('smart') || la.includes('repair') || la.includes('fix')) {
+        else if (lt === 'SMART_FIX' || la.includes('smart') || la.includes('repair') || la.includes('fix') || la.includes('clean')) {
           const s = profile[column];
           currentData = currentData.map(r => {
             let val = String(r[column] || '').replace(',', '.').trim();
@@ -362,7 +343,7 @@ export default function App() {
           changed = true;
           logDesc = `Smart repaired ${column}`;
         }
-        else if (lt === 'CAST_TYPE' || la.includes('cast')) {
+        else if (lt === 'CAST_TYPE' || la.includes('cast') || la.includes('convert')) {
           if (la.includes('int')) {
             currentData = currentData.map(r => {
               const val = String(r[column] || '').replace(',', '.').trim();
@@ -380,19 +361,19 @@ export default function App() {
             logDesc = `Casted ${column} to Date`;
           }
         }
-        else if (lt === 'DROP_MISSING' || la.includes('drop missing')) {
-          // Safeguard: only drop if it's less than 1% of the data
+        else if (lt === 'DROP_MISSING' || la.includes('drop missing') || la.includes('remove missing')) {
           const initialCount = currentData.length;
           const filtered = currentData.filter(r => r[column] !== null && r[column] !== '' && r[column] !== undefined);
-          if ((initialCount - filtered.length) / initialCount < 0.01) {
+          if ((initialCount - filtered.length) / initialCount < 0.05) { // Increased threshold to 5%
             currentData = filtered;
             changed = true;
             logDesc = `Dropped ${initialCount - filtered.length} rows with missing ${column}`;
           } else {
-            // Fallback to fill sentinel
+            const s = profile[column];
+            const fillVal = s?.topValues?.[0]?.[0] || 'MISSING';
             currentData = currentData.map(r => ({
               ...r,
-              [column]: (r[column] === null || r[column] === '' || r[column] === undefined) ? 'MISSING' : r[column]
+              [column]: (r[column] === null || r[column] === '' || r[column] === undefined) ? fillVal : r[column]
             }));
             changed = true;
             logDesc = `Safeguard: Filled missing ${column} instead of dropping rows`;
@@ -428,13 +409,27 @@ export default function App() {
         setPastStates(prev => [...prev, data]);
         setData(currentData);
         setHistory(prev => [...appliedLogs, ...prev]);
-        const p = await (await fetch('/api/profile', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ data: currentData }) })).json();
-        setProfile(p);
+        
+        // Refresh profile with new data
+        const profileRes = await fetch('/api/profile', { 
+          method: 'POST', 
+          headers: { 'Content-Type': 'application/json' }, 
+          body: JSON.stringify({ data: currentData }) 
+        });
+        
+        if (profileRes.ok) {
+          const p = await profileRes.json();
+          setProfile(p);
+        }
+        
         setView('profile');
       } else {
         alert("Expert AI analyzed the data and found it to be within quality thresholds.");
       }
-    } catch (err: any) { alert(`Expert Clean failed: ${err.message || 'Unknown error'}`); }
+    } catch (err: any) { 
+      console.error("Expert Clean error:", err);
+      alert(`Expert Clean failed: ${err.message || 'Unknown error'}`); 
+    }
     finally { setIsQuickCleaning(false); setIsProcessing(false); }
   }, [profile, data]);
 
