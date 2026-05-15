@@ -220,81 +220,75 @@ app.post("/api/ai/chat", async (req, res) => {
   try {
     const groqKey = process.env.GROQ_API_KEY;
     if (!groqKey) {
-      return res.status(401).json({ error: "Groq API key is missing." });
+      console.error("GROQ_API_KEY missing");
+      return res.status(401).json({ error: "Groq API key is missing. Please add it to Vercel environment variables." });
     }
 
     const groq = new Groq({ apiKey: groqKey });
     
+    // Safety check for profile and context to prevent JSON.stringify errors or massive payloads
+    const safeProfile = profile ? profile : {};
+    const safeContext = Array.isArray(context) ? context.slice(0, 50) : []; // Limit to 50 rows max for safety
+
     let systemPrompt = "";
     
-    // Scenario A: User wants to CLEAN the data via chat
     if (isCleaningRequest) {
-      systemPrompt = `You are a Data Engineering Expert. The user wants to perform specific cleaning or transformation actions on their dataset.
+      systemPrompt = `You are a Data Engineering Expert. The user wants to perform specific cleaning or transformation actions.
       
       DATASET PROFILE:
-      ${JSON.stringify(profile)}
+      ${JSON.stringify(safeProfile).substring(0, 10000)} // Safety truncation
       
       INSTRUCTIONS:
-      1. Analyze the user's request and map it to one or more of these AVAILABLE ACTIONS:
-         - ENCODING_FIX: Repair characters.
-         - SMART_FIX: Normalize separators/types.
-         - CAST_TYPE: Convert to int/date/float.
-         - IMPUTE: Fill nulls (mean/median/mode).
-         - FILL_SENTINEL: Fill nulls with "UNKNOWN" or 0.
-         - STANDARDIZE: Trim and lowercase strings.
-         - REMOVE_DUPLICATES: Remove exact duplicate rows.
-         - DROP_MISSING: Remove rows with missing values (use sparingly).
-      
-      2. If the request is a cleaning instruction, your response MUST be a valid JSON object with an "actions" array.
-      3. Each action must include: "order", "type", "column" (or "all"), "action" (description), and "reason".
-      
-      FORMAT:
-      {
-        "isAction": true,
-        "message": "I will apply these changes for you...",
-        "actions": [
-          { "order": 1, "type": "ACTION_TYPE", "column": "col_name", "action": "description", "reason": "why" }
-        ]
-      }`;
-    } 
-    // Scenario B: User wants to ANALYZE the data via chat
-    else {
-      systemPrompt = `You are DataWhiz AI, a sophisticated data analyst assistant. 
-      You help users understand their datasets by providing insights, summaries, and answering questions.
+      1. Map the request to: ENCODING_FIX, SMART_FIX, CAST_TYPE, IMPUTE, FILL_SENTINEL, STANDARDIZE, REMOVE_DUPLICATES, DROP_MISSING.
+      2. Return a valid JSON object with an "actions" array.
+      3. Format: {"isAction": true, "message": "...", "actions": [{"order": 1, "type": "TYPE", "column": "col", "action": "desc", "reason": "why"}]}
+      4. If the column name in the request is slightly different from the profile, use the closest matching column name from the profile.`;
+    } else {
+      systemPrompt = `You are DataWhiz AI, a data analyst assistant. 
       
       DATASET PROFILE SUMMARY:
-      ${JSON.stringify(profile)}
+      ${JSON.stringify(safeProfile).substring(0, 5000)}
       
       DATASET SAMPLE:
-      ${JSON.stringify(context)}
+      ${JSON.stringify(safeContext).substring(0, 5000)}
       
       INSTRUCTIONS:
-      1. If the user's message looks like a cleaning instruction (e.g., "clean", "fix", "uppercase", "remove"), set "isAction" to true and ask them to confirm if they want you to generate a cleaning plan.
-      2. Otherwise, answer their question normally.
-      3. Your response must be a JSON object with "message" and "isAction" (boolean).
-      
-      FORMAT:
-      {
-        "isAction": false,
-        "message": "Your answer in Markdown here..."
-      }`;
+      1. If the request is a cleaning command (e.g. "clean", "fix", "fill", "uppercase"), set "isAction": true and ask to confirm.
+      2. Otherwise, answer the question.
+      3. ALWAYS return a JSON object: {"isAction": boolean, "message": "Markdown response"}`;
     }
 
     const completion = await groq.chat.completions.create({
       messages: [
         { role: "system", content: systemPrompt },
-        { role: "user", content: question }
+        { role: "user", content: question || "Hello" }
       ],
       model: "llama-3.1-8b-instant",
       response_format: { type: "json_object" },
       temperature: 0.1,
     });
 
-    const content = JSON.parse(completion.choices[0]?.message?.content || "{}");
-    return res.json(content);
+    const responseText = completion.choices[0]?.message?.content;
+    if (!responseText) {
+      throw new Error("Empty response from AI");
+    }
+
+    try {
+      const content = JSON.parse(responseText);
+      return res.json(content);
+    } catch (parseError) {
+      console.error("Failed to parse AI response:", responseText);
+      return res.json({ 
+        isAction: false, 
+        message: "I processed your request but had trouble formatting the result. Could you try rephrasing it?" 
+      });
+    }
   } catch (error: any) {
-    console.error("Chat error:", error);
-    res.status(500).json({ error: "Failed to process chat request", details: error.message });
+    console.error("Chat error details:", error);
+    res.status(500).json({ 
+      error: "AI service error", 
+      details: error.message || 'Unknown error'
+    });
   }
 });
 
