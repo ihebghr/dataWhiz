@@ -216,14 +216,14 @@ app.post("/api/ai/generate", async (req, res) => {
  * 2. Processes natural language cleaning instructions (Instruction Mode).
  */
 app.post("/api/ai/chat", async (req, res) => {
-  const { message, dataSample, profile, history } = req.body;
-  const geminiKey = process.env.GEMINI_API_KEY;
-
-  if (!geminiKey) {
-    return res.status(401).json({ error: "GEMINI_API_KEY is missing. Please add it to your environment variables." });
-  }
-
   try {
+    const { message, dataSample, profile, history } = req.body;
+    const geminiKey = process.env.GEMINI_API_KEY;
+
+    if (!geminiKey) {
+      return res.status(401).json({ error: "GEMINI_API_KEY is missing. Please add it to your environment variables." });
+    }
+
     const genAI = new GoogleGenerativeAI(geminiKey);
     const model = genAI.getGenerativeModel({ 
       model: "gemini-1.5-flash",
@@ -238,10 +238,6 @@ app.post("/api/ai/chat", async (req, res) => {
     const systemPrompt = `
       You are DataWhiz AI, a senior data analyst assistant. 
       You help users analyze, clean, and visualize their data.
-      
-      Dataset Context:
-      - Columns and types: ${JSON.stringify(profile)}
-      - Data sample (first few rows): ${JSON.stringify(dataSample)}
       
       Instructions:
       1. If the user asks for a chart, identify the best chart type (bar, line, scatter, area, pie) and the x/y columns.
@@ -269,6 +265,19 @@ app.post("/api/ai/chat", async (req, res) => {
       }
     `;
 
+    // Optimize profile to reduce payload size
+    const optimizedProfile: any = {};
+    if (profile) {
+      Object.entries(profile).forEach(([col, stats]: [string, any]) => {
+        optimizedProfile[col] = {
+          type: stats.type,
+          missing: stats.missingPercentage + "%",
+          unique: stats.uniqueCount,
+          ...(stats.type === 'number' ? { mean: stats.mean, median: stats.median } : { samples: stats.topValues?.slice(0, 3).map((v: any) => v[0]) })
+        };
+      });
+    }
+
     const chat = model.startChat({
       history: [
         {
@@ -277,19 +286,31 @@ app.post("/api/ai/chat", async (req, res) => {
         },
         {
           role: 'model',
-          parts: [{ text: 'Understood. I am DataWhiz AI, and I will help you analyze, clean, and visualize your data according to your instructions.' }],
+          parts: [{ text: 'Understood. I am DataWhiz AI assistant. I have the dataset schema and sample ready.' }],
         },
-        ...(history || []).map((h: any) => ({
+        ...(history || []).slice(-4).map((h: any) => ({ // Only send last 4 messages for history to save tokens
           role: h.role === 'user' ? 'user' : 'model',
           parts: [{ text: h.content }],
         }))
       ],
     });
 
-    // Prepend system prompt to the first message or use it as context
-    const userPrompt = `Dataset Context: ${JSON.stringify(profile)}\n\nUser Message: ${message}`;
+    // Send context only in the first message of the session or if history is empty
+    const contextStr = `Dataset Schema: ${JSON.stringify(optimizedProfile)}\nSample Data: ${JSON.stringify(dataSample)}`;
+    const userPrompt = history && history.length > 0 ? message : `${contextStr}\n\nUser Question: ${message}`;
+    
     const result = await chat.sendMessage(userPrompt);
     const response = await result.response;
+    
+    // Check if the response was blocked by safety filters
+    if (response.candidates && response.candidates[0].finishReason === 'SAFETY') {
+      return res.status(200).json({ 
+        reply: "I'm sorry, but I cannot process this request due to safety restrictions. Please try a different question.",
+        intent: "general",
+        cleaningActions: []
+      });
+    }
+
     const text = response.text();
     
     try {
@@ -308,7 +329,10 @@ app.post("/api/ai/chat", async (req, res) => {
     }
   } catch (error: any) {
     console.error("Gemini Chat error:", error);
-    res.status(500).json({ error: "AI chat failed", details: error.message });
+    res.status(500).json({ 
+      error: "AI chat failed", 
+      details: error.message || 'Unknown error'
+    });
   }
 });
 
