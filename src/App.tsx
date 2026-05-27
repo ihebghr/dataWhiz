@@ -796,12 +796,12 @@ export default function App() {
                 </div>
               </header>
 
-              <div className="flex-1 flex overflow-hidden">
+              <div className="flex-1 flex overflow-hidden relative">
                 <div className="flex-1 overflow-y-auto p-8 custom-scrollbar">
                   <AnimatePresence mode="wait">
                     {view === 'chat' && (
                       <motion.div key="chat-view" initial={{opacity:0,y:10}} animate={{opacity:1,y:0}} exit={{opacity:0,y:-10}} className="h-full flex flex-col gap-6">
-                        <div className="flex-1 min-h-0">
+                        <div className="flex-1 min-h-0 bg-slate-50 rounded-2xl p-4 border border-slate-200 shadow-inner">
                           <ChatInterface 
                             data={data} 
                             profile={profile} 
@@ -862,37 +862,56 @@ export default function App() {
                   </AnimatePresence>
                 </div>
                 
-                {view !== 'chat' && (
-                  <aside className={`relative border-l border-[#e2e8f0] bg-[#f8fafc] flex flex-col shrink-0 transition-all duration-300 ease-in-out ${showChat ? 'w-[400px]' : 'w-0'}`}>
-                    <button 
-                      onClick={() => setShowChat(!showChat)}
-                      className={`absolute top-1/2 -left-4 -translate-y-1/2 w-8 h-8 bg-white border border-[#e2e8f0] rounded-full flex items-center justify-center shadow-md z-10 hover:bg-[#f1f5f9] transition-colors`}
+                {/* Floating Chat Panel on the Right */}
+                <AnimatePresence>
+                  {showChat && (
+                    <motion.aside 
+                      initial={{ x: 400, opacity: 0 }}
+                      animate={{ x: 0, opacity: 1 }}
+                      exit={{ x: 400, opacity: 0 }}
+                      transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+                      className="w-[450px] border-l border-[#e2e8f0] bg-white shadow-2xl flex flex-col shrink-0 z-30"
                     >
-                      {showChat ? <ChevronRight className="w-4 h-4 text-[#0d9488]" /> : <ChevronLeft className="w-4 h-4 text-[#0d9488]" />}
-                    </button>
-                    
-                    <div className={`flex-1 flex flex-col overflow-hidden transition-opacity duration-300 ${showChat ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
-                      <div className="flex-1 overflow-hidden p-4">
-                        <ChatInterface 
-                          data={data} 
-                          profile={profile} 
-                          onApplyActions={handleApplyAIChatActions} 
-                        />
+                      <div className="flex-1 overflow-hidden flex flex-col">
+                        <div className="p-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+                          <div className="flex items-center gap-2">
+                            <div className="w-8 h-8 rounded-lg bg-[#0d9488] flex items-center justify-center text-white">
+                              <Sparkles className="w-4 h-4" />
+                            </div>
+                            <h3 className="font-bold text-slate-800 text-sm uppercase tracking-tight">AI Assistant</h3>
+                          </div>
+                          <button 
+                            onClick={() => setShowChat(false)}
+                            className="p-2 hover:bg-slate-200 rounded-lg transition-colors text-slate-400 hover:text-slate-600"
+                          >
+                            <ChevronRight className="w-5 h-5" />
+                          </button>
+                        </div>
+                        <div className="flex-1 overflow-hidden p-4">
+                          <ChatInterface 
+                            data={data} 
+                            profile={profile} 
+                            onApplyActions={handleApplyAIChatActions} 
+                          />
+                        </div>
+                        <div className="p-4 pt-0 border-t border-slate-50">
+                          <ActionHistory history={history} onUndo={handleUndo} />
+                        </div>
                       </div>
-                      <div className="p-4 pt-0">
-                        <ActionHistory history={history} onUndo={handleUndo} />
-                      </div>
-                    </div>
+                    </motion.aside>
+                  )}
+                </AnimatePresence>
 
-                    {!showChat && (
-                      <button 
-                        onClick={() => setShowChat(true)}
-                        className="absolute top-4 -left-12 w-10 h-10 bg-[#0d9488] text-white rounded-full flex items-center justify-center shadow-lg hover:bg-[#0c857a] transition-all"
-                      >
-                        <MessageSquare className="w-5 h-5" />
-                      </button>
-                    )}
-                  </aside>
+                {!showChat && (
+                  <motion.button 
+                    initial={{ scale: 0, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    onClick={() => setShowChat(true)}
+                    className="absolute top-6 right-6 w-14 h-14 bg-[#0d9488] text-white rounded-2xl flex items-center justify-center shadow-xl hover:bg-[#0c857a] hover:scale-105 transition-all z-40 group"
+                  >
+                    <MessageSquare className="w-6 h-6 group-hover:rotate-12 transition-transform" />
+                    <div className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 rounded-full border-2 border-white animate-pulse"></div>
+                  </motion.button>
                 )}
               </div>
 
