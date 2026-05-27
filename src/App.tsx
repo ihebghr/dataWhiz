@@ -13,7 +13,10 @@ import {
   User as UserIcon,
   LogOut,
   Cloud,
-  Lock
+  Lock,
+  MessageSquare,
+  ChevronRight,
+  ChevronLeft
 } from 'lucide-react';
 
 import { extractJSON } from './lib/aiUtils';
@@ -61,6 +64,7 @@ export default function App() {
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [driveFileLink, setDriveFileLink] = useState<string | null>(null);
   const [lastUploadedFileName, setLastUploadedFileName] = useState('');
+  const [showChat, setShowChat] = useState(true);
 
   useEffect(() => {
     // Handle redirect result for mobile/deployed logins
@@ -859,17 +863,35 @@ export default function App() {
                 </div>
                 
                 {view !== 'chat' && (
-                  <aside className="w-[400px] border-l border-[#e2e8f0] bg-[#f8fafc] flex flex-col shrink-0">
-                    <div className="flex-1 overflow-hidden p-4">
-                      <ChatInterface 
-                        data={data} 
-                        profile={profile} 
-                        onApplyActions={handleApplyAIChatActions} 
-                      />
+                  <aside className={`relative border-l border-[#e2e8f0] bg-[#f8fafc] flex flex-col shrink-0 transition-all duration-300 ease-in-out ${showChat ? 'w-[400px]' : 'w-0'}`}>
+                    <button 
+                      onClick={() => setShowChat(!showChat)}
+                      className={`absolute top-1/2 -left-4 -translate-y-1/2 w-8 h-8 bg-white border border-[#e2e8f0] rounded-full flex items-center justify-center shadow-md z-10 hover:bg-[#f1f5f9] transition-colors`}
+                    >
+                      {showChat ? <ChevronRight className="w-4 h-4 text-[#0d9488]" /> : <ChevronLeft className="w-4 h-4 text-[#0d9488]" />}
+                    </button>
+                    
+                    <div className={`flex-1 flex flex-col overflow-hidden transition-opacity duration-300 ${showChat ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
+                      <div className="flex-1 overflow-hidden p-4">
+                        <ChatInterface 
+                          data={data} 
+                          profile={profile} 
+                          onApplyActions={handleApplyAIChatActions} 
+                        />
+                      </div>
+                      <div className="p-4 pt-0">
+                        <ActionHistory history={history} onUndo={handleUndo} />
+                      </div>
                     </div>
-                    <div className="p-4 pt-0">
-                      <ActionHistory history={history} onUndo={handleUndo} />
-                    </div>
+
+                    {!showChat && (
+                      <button 
+                        onClick={() => setShowChat(true)}
+                        className="absolute top-4 -left-12 w-10 h-10 bg-[#0d9488] text-white rounded-full flex items-center justify-center shadow-lg hover:bg-[#0c857a] transition-all"
+                      >
+                        <MessageSquare className="w-5 h-5" />
+                      </button>
+                    )}
                   </aside>
                 )}
               </div>

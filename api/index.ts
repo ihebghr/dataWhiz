@@ -227,7 +227,12 @@ app.post("/api/ai/chat", async (req, res) => {
     const genAI = new GoogleGenerativeAI(geminiKey);
     const model = genAI.getGenerativeModel({ 
       model: "gemini-1.5-flash",
-      generationConfig: { responseMimeType: "application/json" }
+      generationConfig: { 
+        responseMimeType: "application/json",
+        candidateCount: 1,
+        maxOutputTokens: 2048,
+        temperature: 0.1
+      }
     });
 
     const systemPrompt = `
@@ -265,15 +270,25 @@ app.post("/api/ai/chat", async (req, res) => {
     `;
 
     const chat = model.startChat({
-      history: (history || []).map((h: any) => ({
-        role: h.role === 'user' ? 'user' : 'model',
-        parts: [{ text: h.content }],
-      })),
+      history: [
+        {
+          role: 'user',
+          parts: [{ text: systemPrompt }],
+        },
+        {
+          role: 'model',
+          parts: [{ text: 'Understood. I am DataWhiz AI, and I will help you analyze, clean, and visualize your data according to your instructions.' }],
+        },
+        ...(history || []).map((h: any) => ({
+          role: h.role === 'user' ? 'user' : 'model',
+          parts: [{ text: h.content }],
+        }))
+      ],
     });
 
     // Prepend system prompt to the first message or use it as context
-    const fullMessage = `System Context: ${systemPrompt}\n\nUser Message: ${message}`;
-    const result = await chat.sendMessage(fullMessage);
+    const userPrompt = `Dataset Context: ${JSON.stringify(profile)}\n\nUser Message: ${message}`;
+    const result = await chat.sendMessage(userPrompt);
     const response = await result.response;
     const text = response.text();
     
@@ -281,8 +296,15 @@ app.post("/api/ai/chat", async (req, res) => {
       const jsonResponse = JSON.parse(text);
       res.json(jsonResponse);
     } catch (e) {
-      console.error("Failed to parse Gemini JSON:", text);
-      res.status(500).json({ error: "AI returned invalid JSON", text });
+      // If parsing fails, it might be because of markdown blocks
+      try {
+        const cleanedText = text.replace(/```json\n?|\n?```/g, '').trim();
+        const jsonResponse = JSON.parse(cleanedText);
+        res.json(jsonResponse);
+      } catch (innerError) {
+        console.error("Failed to parse Gemini JSON. Raw text:", text);
+        res.status(500).json({ error: "AI returned invalid JSON", text });
+      }
     }
   } catch (error: any) {
     console.error("Gemini Chat error:", error);
