@@ -935,6 +935,11 @@ export default function App() {
                               data={data} 
                               profile={profile} 
                               onApplyActions={handleApplyAIChatActions} 
+                              onChartGenerated={(chart) => {
+                                setGeneratedCharts(prev => [chart, ...prev]);
+                                setView('insights');
+                                setShowChat(false);
+                              }}
                             />
                           </div>
                           

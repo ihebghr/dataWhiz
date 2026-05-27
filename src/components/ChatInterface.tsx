@@ -18,11 +18,12 @@ interface ChatInterfaceProps {
   data: any[];
   profile: any;
   onApplyActions: (actions: any[], chart?: any) => void;
+  onChartGenerated?: (chart: any) => void;
 }
 
 const COLORS = ['#0d9488', '#0f766e', '#14b8a6', '#2dd4bf', '#5eead4'];
 
-export default function ChatInterface({ data, profile, onApplyActions }: ChatInterfaceProps) {
+export default function ChatInterface({ data, profile, onApplyActions, onChartGenerated }: ChatInterfaceProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -57,6 +58,11 @@ export default function ChatInterface({ data, profile, onApplyActions }: ChatInt
       if (!response.ok) throw new Error('Failed to get AI response');
 
       const result = await response.json();
+      
+      if (result.chart && onChartGenerated) {
+        onChartGenerated(result.chart);
+      }
+
       setMessages(prev => [...prev, {
         role: 'assistant',
         content: result.reply,
