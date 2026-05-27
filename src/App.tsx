@@ -16,7 +16,8 @@ import {
   Lock,
   MessageSquare,
   ChevronRight,
-  ChevronLeft
+  ChevronLeft,
+  PieChart as PieIcon
 } from 'lucide-react';
 
 import { extractJSON } from './lib/aiUtils';
