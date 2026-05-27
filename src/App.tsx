@@ -950,7 +950,6 @@ export default function App() {
                   </motion.button>
                 )}
               </div>
-              </div>
 
               <footer className="h-16 flex items-center justify-between px-8 border-t border-[#e2e8f0] bg-white">
                 <div className="flex gap-6 items-center">
