@@ -46,7 +46,7 @@ export default function Navbar({
 
         <div className="hidden lg:flex items-center gap-8">
           <span className="flex items-center gap-1.5 text-sm font-medium text-[#141414]/50 hover:text-[#0d9488] transition-colors cursor-default"><Zap className="w-4 h-4" />Natural Language</span>
-          <span className="flex items-center gap-1.5 text-sm font-medium text-[#141414]/50 hover:text-[#0d9488] transition-colors cursor-default"><Sparkles className="w-4 h-4" />Gemini Powered</span>
+          <span className="flex items-center gap-1.5 text-sm font-medium text-[#141414]/50 hover:text-[#0d9488] transition-colors cursor-default"><Sparkles className="w-4 h-4" />Groq Powered</span>
           <span className="flex items-center gap-1.5 text-sm font-medium text-[#141414]/50 hover:text-[#0d9488] transition-colors cursor-default"><Shield className="w-4 h-4" />Privacy First</span>
         </div>
 

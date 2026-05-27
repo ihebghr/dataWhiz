@@ -9,7 +9,6 @@ import Papa from "papaparse";
 import * as XLSX from "xlsx";
 import fs from "fs";
 import Groq from "groq-sdk";
-import { GoogleGenerativeAI } from "@google/generative-ai";
 import os from "os";
 
 const app = express();
@@ -218,22 +217,13 @@ app.post("/api/ai/generate", async (req, res) => {
 app.post("/api/ai/chat", async (req, res) => {
   try {
     const { message, dataSample, profile, history } = req.body;
-    const geminiKey = process.env.GEMINI_API_KEY;
+    const groqKey = process.env.GROQ_API_KEY;
 
-    if (!geminiKey) {
-      return res.status(401).json({ error: "GEMINI_API_KEY is missing. Please add it to your environment variables." });
+    if (!groqKey) {
+      return res.status(401).json({ error: "GROQ_API_KEY is missing. Please add it to your environment variables." });
     }
 
-    const genAI = new GoogleGenerativeAI(geminiKey);
-    const model = genAI.getGenerativeModel({ 
-      model: "gemini-1.5-flash",
-      generationConfig: { 
-        responseMimeType: "application/json",
-        candidateCount: 1,
-        maxOutputTokens: 2048,
-        temperature: 0.1
-      }
-    });
+    const groq = new Groq({ apiKey: groqKey });
 
     const systemPrompt = `
       You are DataWhiz AI, a senior data analyst assistant. 
@@ -278,57 +268,45 @@ app.post("/api/ai/chat", async (req, res) => {
       });
     }
 
-    const chat = model.startChat({
-      history: [
-        {
-          role: 'user',
-          parts: [{ text: systemPrompt }],
-        },
-        {
-          role: 'model',
-          parts: [{ text: 'Understood. I am DataWhiz AI assistant. I have the dataset schema and sample ready.' }],
-        },
-        ...(history || []).slice(-4).map((h: any) => ({ // Only send last 4 messages for history to save tokens
-          role: h.role === 'user' ? 'user' : 'model',
-          parts: [{ text: h.content }],
-        }))
-      ],
+    const messages = [
+      {
+        role: "system",
+        content: systemPrompt
+      },
+      ...(history || []).slice(-6).map((h: any) => ({
+        role: h.role === 'user' ? 'user' : 'assistant',
+        content: h.content
+      }))
+    ];
+
+    // Add context to the latest message
+    const contextStr = `Dataset Schema: ${JSON.stringify(optimizedProfile)}\nSample Data: ${JSON.stringify(dataSample)}`;
+    messages.push({
+      role: "user",
+      content: `Context: ${contextStr}\n\nUser Question: ${message}`
     });
 
-    // Send context only in the first message of the session or if history is empty
-    const contextStr = `Dataset Schema: ${JSON.stringify(optimizedProfile)}\nSample Data: ${JSON.stringify(dataSample)}`;
-    const userPrompt = history && history.length > 0 ? message : `${contextStr}\n\nUser Question: ${message}`;
-    
-    const result = await chat.sendMessage(userPrompt);
-    const response = await result.response;
-    
-    // Check if the response was blocked by safety filters
-    if (response.candidates && response.candidates[0].finishReason === 'SAFETY') {
-      return res.status(200).json({ 
-        reply: "I'm sorry, but I cannot process this request due to safety restrictions. Please try a different question.",
-        intent: "general",
-        cleaningActions: []
-      });
+    const completion = await groq.chat.completions.create({
+      messages: messages as any,
+      model: "llama-3.3-70b-versatile",
+      response_format: { type: "json_object" },
+      temperature: 0.1,
+    });
+
+    const text = completion.choices[0]?.message?.content;
+    if (!text) {
+      throw new Error("AI returned an empty response");
     }
 
-    const text = response.text();
-    
     try {
       const jsonResponse = JSON.parse(text);
       res.json(jsonResponse);
     } catch (e) {
-      // If parsing fails, it might be because of markdown blocks
-      try {
-        const cleanedText = text.replace(/```json\n?|\n?```/g, '').trim();
-        const jsonResponse = JSON.parse(cleanedText);
-        res.json(jsonResponse);
-      } catch (innerError) {
-        console.error("Failed to parse Gemini JSON. Raw text:", text);
-        res.status(500).json({ error: "AI returned invalid JSON", text });
-      }
+      console.error("Failed to parse Groq JSON. Raw text:", text);
+      res.status(500).json({ error: "AI returned invalid JSON", text });
     }
   } catch (error: any) {
-    console.error("Gemini Chat error:", error);
+    console.error("Groq Chat error:", error);
     res.status(500).json({ 
       error: "AI chat failed", 
       details: error.message || 'Unknown error'

@@ -253,7 +253,7 @@ export default function ChatInterface({ data, profile, onApplyActions }: ChatInt
           </button>
         </div>
         <p className="mt-2 text-[10px] text-center text-white/20 uppercase font-bold tracking-widest">
-          Powered by Gemini 1.5 Flash
+          Powered by Llama 3.3 via Groq
         </p>
       </div>
     </div>
