@@ -9,6 +9,7 @@ import {
   Wand2,
   History,
   Zap,
+  Sparkles,
   User as UserIcon,
   LogOut,
   Cloud,
