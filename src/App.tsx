@@ -801,12 +801,21 @@ export default function App() {
                   <AnimatePresence mode="wait">
                     {view === 'chat' && (
                       <motion.div key="chat-view" initial={{opacity:0,y:10}} animate={{opacity:1,y:0}} exit={{opacity:0,y:-10}} className="h-full flex flex-col gap-6">
-                        <div className="flex-1 min-h-0 bg-slate-50 rounded-2xl p-4 border border-slate-200 shadow-inner">
-                          <ChatInterface 
-                            data={data} 
-                            profile={profile} 
-                            onApplyActions={handleApplyAIChatActions} 
-                          />
+                        <div className="flex-1 min-h-0 bg-slate-50 rounded-2xl p-8 border border-slate-200 shadow-inner flex flex-col items-center justify-center text-center">
+                          <div className="w-20 h-20 bg-[#0d9488]/10 rounded-full flex items-center justify-center mb-6">
+                            <Sparkles className="w-10 h-10 text-[#0d9488]" />
+                          </div>
+                          <h2 className="text-2xl font-bold text-slate-800 mb-2">AI Data Analyst</h2>
+                          <p className="text-slate-500 max-w-md mb-8">
+                            I'm ready to help you analyze this dataset. You can ask me questions, request charts, or ask for cleaning suggestions using the chat assistant on the right.
+                          </p>
+                          <button 
+                            onClick={() => setShowChat(true)}
+                            className="px-6 py-3 bg-[#0d9488] text-white rounded-xl font-bold hover:bg-[#0c857a] transition-all flex items-center gap-2 shadow-lg shadow-[#0d9488]/20"
+                          >
+                            <MessageSquare className="w-5 h-5" />
+                            Open AI Assistant
+                          </button>
                         </div>
                         <div className="h-1/3 border-t border-slate-200 pt-6">
                           <div className="flex items-center justify-between mb-4">
@@ -862,57 +871,85 @@ export default function App() {
                   </AnimatePresence>
                 </div>
                 
-                {/* Floating Chat Panel on the Right */}
+                {/* Fixed-Position Slide-out Chat Panel */}
                 <AnimatePresence>
                   {showChat && (
-                    <motion.aside 
-                      initial={{ x: 400, opacity: 0 }}
-                      animate={{ x: 0, opacity: 1 }}
-                      exit={{ x: 400, opacity: 0 }}
-                      transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-                      className="w-[450px] border-l border-[#e2e8f0] bg-white shadow-2xl flex flex-col shrink-0 z-30"
-                    >
-                      <div className="flex-1 overflow-hidden flex flex-col">
-                        <div className="p-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
-                          <div className="flex items-center gap-2">
-                            <div className="w-8 h-8 rounded-lg bg-[#0d9488] flex items-center justify-center text-white">
-                              <Sparkles className="w-4 h-4" />
+                    <>
+                      {/* Backdrop to close when clicking outside */}
+                      <motion.div 
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        onClick={() => setShowChat(false)}
+                        className="fixed inset-0 bg-black/20 backdrop-blur-[1px] z-40"
+                      />
+                      
+                      <motion.aside 
+                        initial={{ x: '100%' }}
+                        animate={{ x: 0 }}
+                        exit={{ x: '100%' }}
+                        transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+                        className="fixed top-0 right-0 h-full w-[450px] bg-white shadow-[-10px_0_30px_rgba(0,0,0,0.1)] flex flex-col z-50 border-l border-slate-200"
+                      >
+                        <div className="flex-1 overflow-hidden flex flex-col">
+                          <div className="p-6 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+                            <div className="flex items-center gap-3">
+                              <div className="w-10 h-10 rounded-xl bg-[#0d9488] flex items-center justify-center text-white shadow-lg shadow-[#0d9488]/20">
+                                <Sparkles className="w-5 h-5" />
+                              </div>
+                              <div>
+                                <h3 className="font-bold text-slate-800 text-sm uppercase tracking-wider">DataWhiz AI</h3>
+                                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-[0.1em]">Expert Assistant</p>
+                              </div>
                             </div>
-                            <h3 className="font-bold text-slate-800 text-sm uppercase tracking-tight">AI Assistant</h3>
+                            <button 
+                              onClick={() => setShowChat(false)}
+                              className="p-2 hover:bg-slate-200 rounded-lg transition-colors text-slate-400 hover:text-slate-600"
+                            >
+                              <ChevronRight className="w-6 h-6" />
+                            </button>
                           </div>
-                          <button 
-                            onClick={() => setShowChat(false)}
-                            className="p-2 hover:bg-slate-200 rounded-lg transition-colors text-slate-400 hover:text-slate-600"
-                          >
-                            <ChevronRight className="w-5 h-5" />
-                          </button>
+                          
+                          <div className="flex-1 overflow-hidden p-4">
+                            <ChatInterface 
+                              data={data} 
+                              profile={profile} 
+                              onApplyActions={handleApplyAIChatActions} 
+                            />
+                          </div>
+                          
+                          <div className="p-4 bg-slate-50 border-t border-slate-100">
+                            <div className="mb-2 px-2 flex items-center justify-between">
+                              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Recent Activity</span>
+                              <button onClick={handleUndo} disabled={history.length === 0} className="text-[10px] font-bold text-[#0d9488] hover:underline uppercase disabled:opacity-30">Undo</button>
+                            </div>
+                            <div className="max-h-32 overflow-y-auto pr-2 custom-scrollbar">
+                              <ActionHistory history={history} onUndo={handleUndo} />
+                            </div>
+                          </div>
                         </div>
-                        <div className="flex-1 overflow-hidden p-4">
-                          <ChatInterface 
-                            data={data} 
-                            profile={profile} 
-                            onApplyActions={handleApplyAIChatActions} 
-                          />
-                        </div>
-                        <div className="p-4 pt-0 border-t border-slate-50">
-                          <ActionHistory history={history} onUndo={handleUndo} />
-                        </div>
-                      </div>
-                    </motion.aside>
+                      </motion.aside>
+                    </>
                   )}
                 </AnimatePresence>
 
                 {!showChat && (
                   <motion.button 
-                    initial={{ scale: 0, opacity: 0 }}
-                    animate={{ scale: 1, opacity: 1 }}
+                    initial={{ scale: 0, x: 100 }}
+                    animate={{ scale: 1, x: 0 }}
                     onClick={() => setShowChat(true)}
-                    className="absolute top-6 right-6 w-14 h-14 bg-[#0d9488] text-white rounded-2xl flex items-center justify-center shadow-xl hover:bg-[#0c857a] hover:scale-105 transition-all z-40 group"
+                    className="fixed bottom-8 right-8 w-16 h-16 bg-[#0d9488] text-white rounded-2xl flex items-center justify-center shadow-2xl hover:bg-[#0c857a] hover:scale-105 transition-all z-40 group"
                   >
-                    <MessageSquare className="w-6 h-6 group-hover:rotate-12 transition-transform" />
-                    <div className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 rounded-full border-2 border-white animate-pulse"></div>
+                    <MessageSquare className="w-7 h-7 group-hover:rotate-12 transition-transform" />
+                    <div className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 rounded-full border-2 border-white flex items-center justify-center">
+                      <div className="w-1.5 h-1.5 bg-white rounded-full animate-ping" />
+                    </div>
+                    <span className="absolute right-20 bg-slate-800 text-white text-[10px] font-bold px-3 py-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap uppercase tracking-widest shadow-lg">
+                      Open AI Assistant
+                    </span>
                   </motion.button>
                 )}
+              </div>
               </div>
 
               <footer className="h-16 flex items-center justify-between px-8 border-t border-[#e2e8f0] bg-white">
