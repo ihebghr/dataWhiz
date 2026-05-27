@@ -40,13 +40,13 @@ export default function Navbar({
           </div>
           <div>
             <h1 className="text-xl font-extrabold tracking-tighter">DATAWHIZ <span className="text-[#0d9488]">AI</span></h1>
-            <p className="text-[10px] font-bold text-[#141414]/40 uppercase tracking-[0.2em] -mt-1">Cleaning Suite v1.0</p>
+            <p className="text-[10px] font-bold text-[#141414]/40 uppercase tracking-[0.2em] -mt-1">AI Data Analyst Assistant</p>
           </div>
         </div>
 
         <div className="hidden lg:flex items-center gap-8">
-          <span className="flex items-center gap-1.5 text-sm font-medium text-[#141414]/50 hover:text-[#0d9488] transition-colors cursor-default"><Zap className="w-4 h-4" />Quick Clean</span>
-          <span className="flex items-center gap-1.5 text-sm font-medium text-[#141414]/50 hover:text-[#0d9488] transition-colors cursor-default"><Sparkles className="w-4 h-4" />AI Engine</span>
+          <span className="flex items-center gap-1.5 text-sm font-medium text-[#141414]/50 hover:text-[#0d9488] transition-colors cursor-default"><Zap className="w-4 h-4" />Natural Language</span>
+          <span className="flex items-center gap-1.5 text-sm font-medium text-[#141414]/50 hover:text-[#0d9488] transition-colors cursor-default"><Sparkles className="w-4 h-4" />Gemini Powered</span>
           <span className="flex items-center gap-1.5 text-sm font-medium text-[#141414]/50 hover:text-[#0d9488] transition-colors cursor-default"><Shield className="w-4 h-4" />Privacy First</span>
         </div>
 

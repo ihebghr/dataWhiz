@@ -27,6 +27,7 @@ import Profiling from './components/Profiling';
 import CleaningActions from './components/CleaningActions';
 import ActionHistory from './components/ActionHistory';
 import AISuggestions from './components/AISuggestions';
+import ChatInterface from './components/ChatInterface';
 import Navbar from './components/Navbar';
 import Hero from './components/Hero';
 import SuccessModal from './components/SuccessModal';
@@ -574,70 +575,95 @@ export default function App() {
     }
   }, [data, profile, handleApplyAction]);
 
-  const handleChatApplyActions = useCallback((actions: any[]) => {
-    if (!data) return;
-    setIsProcessing(true);
+  const handleApplyAIChatActions = useCallback(async (actions: any[]) => {
+    if (!data || !profile) return;
     
     let currentData = [...data];
-    const logs: ActionLog[] = [];
-    
-    for (const act of actions) {
-      const { column, type, action: actionDesc } = act;
-      const la = (actionDesc || '').toLowerCase();
-      const lt = (type || '').toUpperCase();
-      let changed = false;
-      let logDesc = actionDesc;
+    const appliedLogs: ActionLog[] = [];
 
-      if (lt === 'ENCODING_FIX' || la.includes('encoding')) {
+    for (const action of actions) {
+      const { type, column, oldName, newName, value, to } = action;
+      let changed = false;
+      let logDesc = "";
+
+      if (type === 'rename_column' && oldName && newName) {
         currentData = currentData.map(r => {
-          let val = String(r[column] || '');
-          val = val.replace(/Ã©/g, 'é').replace(/â€™/g, "'").replace(/â€œ/g, '"');
-          val = val.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '');
-          return { ...r, [column]: val.trim() };
+          const newRow = { ...r };
+          newRow[newName] = r[oldName];
+          delete newRow[oldName];
+          return newRow;
         });
         changed = true;
-      } else if (lt === 'IMPUTE' || lt === 'FILL_SENTINEL' || la.includes('impute') || la.includes('fill')) {
+        logDesc = `Renamed ${oldName} to ${newName}`;
+      } else if (type === 'remove_column' && column) {
+        currentData = currentData.map(r => {
+          const newRow = { ...r };
+          delete newRow[column];
+          return newRow;
+        });
+        changed = true;
+        logDesc = `Removed column ${column}`;
+      } else if (type === 'fill_missing' && column) {
+        let fillVal = value;
         const s = profile[column];
-        let fillVal = la.includes('mean') ? Number(s?.mean) : (la.includes('median') ? Number(s?.median || s?.mean) : (s?.topValues?.[0]?.[0] || 'UNKNOWN'));
-        currentData = currentData.map(r => ({ ...r, [column]: (r[column] === null || r[column] === '' || r[column] === undefined) ? fillVal : r[column] }));
+        if (value === 'median' && s?.type === 'number') fillVal = s.median;
+        else if (value === 'mean' && s?.type === 'number') fillVal = s.mean;
+        else if (value === 'zero') fillVal = 0;
+        
+        currentData = currentData.map(r => ({
+          ...r,
+          [column]: (r[column] === null || r[column] === '' || r[column] === undefined) ? fillVal : r[column]
+        }));
         changed = true;
-      } else if (lt === 'STANDARDIZE' || la.includes('standardize') || la.includes('lower') || la.includes('trim') || la.includes('uppercase')) {
-        const isUpper = la.includes('uppercase');
-        currentData = currentData.map(r => ({ ...r, [column]: isUpper ? String(r[column] || '').toUpperCase().trim() : String(r[column] || '').toLowerCase().trim() }));
+        logDesc = `Filled missing values in ${column} with ${fillVal}`;
+      } else if (type === 'drop_missing' && column) {
+        const initialCount = currentData.length;
+        currentData = currentData.filter(r => r[column] !== null && r[column] !== '' && r[column] !== undefined);
         changed = true;
-      } else if (lt === 'CAST_TYPE' || la.includes('cast')) {
-        if (la.includes('int')) {
-          currentData = currentData.map(r => {
-            const num = parseFloat(String(r[column] || '').replace(',', '.'));
-            return isNaN(num) ? r : { ...r, [column]: Math.round(num) };
-          });
-          changed = true;
-        }
-      } else if (lt === 'REMOVE_DUPLICATES' || la.includes('duplicate')) {
-        const initial = currentData.length;
-        const seen = new Set();
-        currentData = currentData.filter(r => {
-          const s = JSON.stringify(r);
-          if (seen.has(s)) return false;
-          seen.add(s);
-          return true;
+        logDesc = `Dropped ${initialCount - currentData.length} rows with missing ${column}`;
+      } else if (type === 'convert_type' && column && to) {
+        currentData = currentData.map(r => {
+          let val = r[column];
+          if (to === 'number') val = Number(val);
+          else if (to === 'string') val = String(val);
+          else if (to === 'date') val = new Date(val).toISOString().split('T')[0];
+          return { ...r, [column]: val };
         });
-        if (currentData.length < initial) changed = true;
+        changed = true;
+        logDesc = `Converted ${column} to ${to}`;
       }
 
       if (changed) {
-        logs.push({ id: Math.random().toString(36).substr(2, 9), type: 'AI_CHAT_CLEAN', column, timestamp: Date.now(), description: logDesc });
+        appliedLogs.push({
+          id: Math.random().toString(36).substr(2, 9),
+          type: 'AI_CHAT_ACTION',
+          column: column || oldName,
+          timestamp: Date.now(),
+          description: logDesc
+        });
       }
     }
 
-    if (logs.length > 0) {
+    if (appliedLogs.length > 0) {
       setPastStates(prev => [...prev, data]);
       setData(currentData);
-      setHistory(prev => [...logs, ...prev]);
-      fetch('/api/profile', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ data: currentData }) })
-        .then(r => r.json()).then(p => setProfile(p)).finally(() => setIsProcessing(false));
-    } else {
-      setIsProcessing(false);
+      setHistory(prev => [...appliedLogs, ...prev]);
+      
+      // Refresh profile
+      setIsProcessing(true);
+      try {
+        const profileRes = await fetch('/api/profile', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ data: currentData })
+        });
+        const p = await profileRes.json();
+        setProfile(p);
+      } catch (err) {
+        console.error("Profile refresh failed:", err);
+      } finally {
+        setIsProcessing(false);
+      }
     }
   }, [data, profile]);
 
@@ -759,50 +785,61 @@ export default function App() {
                 </div>
               </header>
 
-              <div className="flex-1 overflow-y-auto p-8 custom-scrollbar">
-                <AnimatePresence mode="wait">
-                  {view === 'preview' && (
-                    <motion.div key="pv" initial={{opacity:0,y:10}} animate={{opacity:1,y:0}} exit={{opacity:0,y:-10}}>
-                      <section className="grid grid-cols-4 bg-[#e2e8f0] gap-[1px] border border-[#e2e8f0] rounded-lg overflow-hidden mb-8 shadow-sm">
-                        <StatCard label="Total Rows" value={data.length} />
-                        <StatCard label="Columns" value={fileInfo?.columns || 0} />
-                        <StatCard label="Actions Applied" value={history.length} />
-                        <StatCard label="Can Undo" value={pastStates.length > 0 ? 'Yes' : 'No'} />
-                      </section>
-                      <DataPreview data={data} />
-                    </motion.div>
-                  )}
-                  {view === 'profile' && (
-                    <motion.div key="pr" initial={{opacity:0,y:10}} animate={{opacity:1,y:0}} exit={{opacity:0,y:-10}}>
-                      <Profiling profile={profile} data={data} isLoading={isProcessing} onViewAnalysis={(col) => { setActiveCleaningColumn(col); setView('cleaning'); }} />
-                    </motion.div>
-                  )}
-                  {view === 'cleaning' && (
-                    <motion.div key="cl" initial={{opacity:0,y:10}} animate={{opacity:1,y:0}} exit={{opacity:0,y:-10}} className="space-y-8">
-                      <div className="grid grid-cols-12 gap-8">
-                        <div className="col-span-8 space-y-8">
-                          <CleaningActions data={data} profile={profile} onApply={handleApplyAction} initialColumn={activeCleaningColumn || undefined} />
-                        </div>
-                        <div className="col-span-4 space-y-8">
-                          <AISuggestions profile={profile} onApplySuggestedAction={handleAISuggest} />
-                          <ActionHistory history={history} onUndo={handleUndo} />
-                        </div>
-                      </div>
-                      <div className="pt-8 border-t border-slate-200">
-                        <div className="mb-4 flex items-center gap-2">
-                          <div className="w-8 h-8 rounded-lg bg-[#0d9488]/10 text-[#0d9488] flex items-center justify-center">
-                            <FileSpreadsheet className="w-4 h-4" />
-                          </div>
-                          <div>
-                            <h3 className="text-sm font-bold text-[#0f172a] uppercase tracking-wider">Live Data Preview</h3>
-                            <p className="text-[10px] text-[#64748b] font-mono">Real-time view of your dataset</p>
-                          </div>
-                        </div>
+              <div className="flex-1 flex overflow-hidden">
+                <div className="flex-1 overflow-y-auto p-8 custom-scrollbar">
+                  <AnimatePresence mode="wait">
+                    {view === 'preview' && (
+                      <motion.div key="pv" initial={{opacity:0,y:10}} animate={{opacity:1,y:0}} exit={{opacity:0,y:-10}}>
+                        <section className="grid grid-cols-4 bg-[#e2e8f0] gap-[1px] border border-[#e2e8f0] rounded-lg overflow-hidden mb-8 shadow-sm">
+                          <StatCard label="Total Rows" value={data.length} />
+                          <StatCard label="Columns" value={fileInfo?.columns || 0} />
+                          <StatCard label="Actions Applied" value={history.length} />
+                          <StatCard label="Can Undo" value={pastStates.length > 0 ? 'Yes' : 'No'} />
+                        </section>
                         <DataPreview data={data} />
-                      </div>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
+                      </motion.div>
+                    )}
+                    {view === 'profile' && (
+                      <motion.div key="pr" initial={{opacity:0,y:10}} animate={{opacity:1,y:0}} exit={{opacity:0,y:-10}}>
+                        <Profiling profile={profile} data={data} isLoading={isProcessing} onViewAnalysis={(col) => { setActiveCleaningColumn(col); setView('cleaning'); }} />
+                      </motion.div>
+                    )}
+                    {view === 'cleaning' && (
+                      <motion.div key="cl" initial={{opacity:0,y:10}} animate={{opacity:1,y:0}} exit={{opacity:0,y:-10}} className="space-y-8">
+                        <div className="grid grid-cols-12 gap-8">
+                          <div className="col-span-12 space-y-8">
+                            <CleaningActions data={data} profile={profile} onApply={handleApplyAction} initialColumn={activeCleaningColumn || undefined} />
+                          </div>
+                        </div>
+                        <div className="pt-8 border-t border-slate-200">
+                          <div className="mb-4 flex items-center gap-2">
+                            <div className="w-8 h-8 rounded-lg bg-[#0d9488]/10 text-[#0d9488] flex items-center justify-center">
+                              <FileSpreadsheet className="w-4 h-4" />
+                            </div>
+                            <div>
+                              <h3 className="text-sm font-bold text-[#0f172a] uppercase tracking-wider">Live Data Preview</h3>
+                              <p className="text-[10px] text-[#64748b] font-mono">Real-time view of your dataset</p>
+                            </div>
+                          </div>
+                          <DataPreview data={data} />
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
+                
+                <aside className="w-[400px] border-l border-[#e2e8f0] bg-[#f8fafc] flex flex-col shrink-0">
+                  <div className="flex-1 overflow-hidden p-4">
+                    <ChatInterface 
+                      data={data} 
+                      profile={profile} 
+                      onApplyActions={handleApplyAIChatActions} 
+                    />
+                  </div>
+                  <div className="p-4 pt-0">
+                    <ActionHistory history={history} onUndo={handleUndo} />
+                  </div>
+                </aside>
               </div>
 
               <footer className="h-16 flex items-center justify-between px-8 border-t border-[#e2e8f0] bg-white">

@@ -42,13 +42,13 @@ export default function Hero({ onUpload, user, onLogin }: HeroProps) {
       </motion.div>
 
       <motion.h1 initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}
-        className="text-6xl md:text-7xl font-bold tracking-tight mb-6 max-w-3xl leading-[0.9] text-[#0f172a]">
-        Clean your data <span className="text-[#0d9488]">effortlessly</span> with AI.
+        className="text-6xl md:text-7xl font-bold tracking-tight mb-6 max-w-4xl leading-[0.9] text-[#0f172a]">
+        Talk with your <span className="text-[#0d9488]">data</span> in natural language.
       </motion.h1>
 
       <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.2 }}
-        className="text-lg text-[#64748b] max-w-xl mb-6 leading-relaxed">
-        Upload any CSV, Excel, or JSON file. Profile your data, identify anomalies, and apply smart cleaning steps — <strong className="text-[#0f172a]">no account needed</strong> to get started.
+        className="text-lg text-[#64748b] max-w-2xl mb-6 leading-relaxed">
+        DataWhiz AI lets you upload messy datasets and chat with them. Use AI to understand your data, answer analytical questions, generate charts, and apply cleaning actions through natural language.
       </motion.p>
 
       {/* Feature pills */}
@@ -91,7 +91,7 @@ export default function Hero({ onUpload, user, onLogin }: HeroProps) {
             <p className="text-[#64748b] font-mono text-xs uppercase tracking-wider font-bold">CSV, XLSX, XLS, or JSON · Max 50MB</p>
           </div>
           <div className="flex gap-4 mt-2">
-            {['Auto Profiling', 'Type Detection', 'Anomaly Analysis'].map(f => (
+            {['AI Data Analyst', 'Natural Language Chat', 'Dynamic Visualizations'].map(f => (
               <span key={f} className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-[#475569]">
                 <Check className="w-3 h-3 text-[#0d9488]" /> {f}
               </span>

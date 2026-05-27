@@ -9,6 +9,7 @@ import Papa from "papaparse";
 import * as XLSX from "xlsx";
 import fs from "fs";
 import Groq from "groq-sdk";
+import { GoogleGenerativeAI } from "@google/generative-ai";
 import os from "os";
 
 const app = express();
@@ -214,4 +215,79 @@ app.post("/api/ai/generate", async (req, res) => {
  * 1. Handles general questions about the data (Analysis Mode).
  * 2. Processes natural language cleaning instructions (Instruction Mode).
  */
+app.post("/api/ai/chat", async (req, res) => {
+  const { message, dataSample, profile, history } = req.body;
+  const geminiKey = process.env.GEMINI_API_KEY;
+
+  if (!geminiKey) {
+    return res.status(401).json({ error: "GEMINI_API_KEY is missing. Please add it to your environment variables." });
+  }
+
+  try {
+    const genAI = new GoogleGenerativeAI(geminiKey);
+    const model = genAI.getGenerativeModel({ 
+      model: "gemini-1.5-flash",
+      generationConfig: { responseMimeType: "application/json" }
+    });
+
+    const systemPrompt = `
+      You are DataWhiz AI, a senior data analyst assistant. 
+      You help users analyze, clean, and visualize their data.
+      
+      Dataset Context:
+      - Columns and types: ${JSON.stringify(profile)}
+      - Data sample (first few rows): ${JSON.stringify(dataSample)}
+      
+      Instructions:
+      1. If the user asks for a chart, identify the best chart type (bar, line, scatter, area, pie) and the x/y columns.
+      2. If the user asks to clean or transform data, provide a list of actions.
+      3. Available cleaning actions: 
+         - {"type": "rename_column", "oldName": "...", "newName": "..."}
+         - {"type": "remove_column", "column": "..."}
+         - {"type": "fill_missing", "column": "...", "value": "median" | "mean" | "zero" | "custom_value"}
+         - {"type": "drop_missing", "column": "..."}
+         - {"type": "convert_type", "column": "...", "to": "number" | "string" | "date"}
+      4. Always provide a clear, helpful reply explaining what you found or did.
+      5. Respond ONLY with a valid JSON object matching this schema:
+      {
+        "reply": "Your conversational response here",
+        "intent": "general" | "chart" | "cleaning",
+        "chart": {
+          "type": "bar" | "line" | "scatter" | "area" | "pie",
+          "x": "column_name",
+          "y": "column_name",
+          "title": "Chart Title"
+        },
+        "cleaningActions": [
+          { "type": "...", ... }
+        ]
+      }
+    `;
+
+    const chat = model.startChat({
+      history: (history || []).map((h: any) => ({
+        role: h.role === 'user' ? 'user' : 'model',
+        parts: [{ text: h.content }],
+      })),
+    });
+
+    // Prepend system prompt to the first message or use it as context
+    const fullMessage = `System Context: ${systemPrompt}\n\nUser Message: ${message}`;
+    const result = await chat.sendMessage(fullMessage);
+    const response = await result.response;
+    const text = response.text();
+    
+    try {
+      const jsonResponse = JSON.parse(text);
+      res.json(jsonResponse);
+    } catch (e) {
+      console.error("Failed to parse Gemini JSON:", text);
+      res.status(500).json({ error: "AI returned invalid JSON", text });
+    }
+  } catch (error: any) {
+    console.error("Gemini Chat error:", error);
+    res.status(500).json({ error: "AI chat failed", details: error.message });
+  }
+});
+
 export default app;
