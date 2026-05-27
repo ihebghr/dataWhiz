@@ -32,6 +32,7 @@ import CleaningActions from './components/CleaningActions';
 import ActionHistory from './components/ActionHistory';
 import AISuggestions from './components/AISuggestions';
 import ChatInterface from './components/ChatInterface';
+import VisualInsights from './components/VisualInsights';
 import Navbar from './components/Navbar';
 import Hero from './components/Hero';
 import SuccessModal from './components/SuccessModal';
@@ -56,8 +57,9 @@ export default function App() {
   const [profile, setProfile] = useState<any | null>(null);
   const [history, setHistory] = useState<ActionLog[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [view, setView] = useState<'preview' | 'profile' | 'cleaning' | 'chat'>('chat');
+  const [view, setView] = useState<'preview' | 'profile' | 'cleaning' | 'chat' | 'insights'>('chat');
   const [isQuickCleaning, setIsQuickCleaning] = useState(false);
+  const [generatedCharts, setGeneratedCharts] = useState<any[]>([]);
   const [activeCleaningColumn, setActiveCleaningColumn] = useState<string | null>(null);
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [authModalReason, setAuthModalReason] = useState<'download' | 'drive'>('download');
@@ -581,8 +583,16 @@ export default function App() {
     }
   }, [data, profile, handleApplyAction]);
 
-  const handleApplyAIChatActions = useCallback(async (actions: any[]) => {
+  const handleApplyAIChatActions = useCallback(async (actions: any[], chart?: any) => {
     if (!data || !profile) return;
+    
+    if (chart) {
+      setGeneratedCharts(prev => [chart, ...prev]);
+      setView('insights');
+      setShowChat(false);
+    }
+
+    if (!actions || actions.length === 0) return;
     
     let currentData = [...data];
     const appliedLogs: ActionLog[] = [];
@@ -729,6 +739,7 @@ export default function App() {
                 <nav className="space-y-1">
                   {([
                     {id:'chat',label:'AI Analyst',icon:Sparkles},
+                    {id:'insights',label:'Visual Insights',icon:PieIcon},
                     {id:'preview',label:'Data Preview',icon:LayoutDashboard},
                     {id:'profile',label:'Profiling',icon:BarChart3},
                     {id:'cleaning',label:'Cleaning',icon:Wand2}
@@ -829,6 +840,15 @@ export default function App() {
                             <DataPreview data={data.slice(0, 10)} />
                           </div>
                         </div>
+                      </motion.div>
+                    )}
+                    {view === 'insights' && (
+                      <motion.div key="insights-view" initial={{opacity:0,y:10}} animate={{opacity:1,y:0}} exit={{opacity:0,y:-10}}>
+                        <VisualInsights 
+                          charts={generatedCharts} 
+                          data={data} 
+                          onRemoveChart={(idx) => setGeneratedCharts(prev => prev.filter((_, i) => i !== idx))} 
+                        />
                       </motion.div>
                     )}
                     {view === 'preview' && (

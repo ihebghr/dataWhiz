@@ -17,7 +17,7 @@ interface Message {
 interface ChatInterfaceProps {
   data: any[];
   profile: any;
-  onApplyActions: (actions: any[]) => void;
+  onApplyActions: (actions: any[], chart?: any) => void;
 }
 
 const COLORS = ['#0d9488', '#0f766e', '#14b8a6', '#2dd4bf', '#5eead4'];
@@ -208,11 +208,23 @@ export default function ChatInterface({ data, profile, onApplyActions }: ChatInt
                     ))}
                   </div>
                   <button
-                    onClick={() => onApplyActions(m.cleaningActions!)}
+                    onClick={() => onApplyActions(m.cleaningActions!, m.chart)}
                     className="w-full py-2 bg-[#0d9488]/20 hover:bg-[#0d9488]/30 text-[#2dd4bf] text-xs font-bold rounded-lg border border-[#0d9488]/30 transition-all flex items-center justify-center gap-2"
                   >
                     <CheckCircle2 className="w-3 h-3" />
-                    APPLY ACTIONS
+                    {m.chart ? 'SAVE CHART & APPLY' : 'APPLY ACTIONS'}
+                  </button>
+                </div>
+              )}
+
+              {m.chart && !m.cleaningActions && (
+                <div className="mt-2">
+                  <button
+                    onClick={() => onApplyActions([], m.chart)}
+                    className="w-full py-2 bg-[#0d9488]/20 hover:bg-[#0d9488]/30 text-[#2dd4bf] text-xs font-bold rounded-lg border border-[#0d9488]/30 transition-all flex items-center justify-center gap-2"
+                  >
+                    <BarChart3 className="w-3 h-3" />
+                    SAVE TO INSIGHTS
                   </button>
                 </div>
               )}
