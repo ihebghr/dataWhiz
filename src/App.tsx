@@ -52,7 +52,7 @@ export default function App() {
   const [profile, setProfile] = useState<any | null>(null);
   const [history, setHistory] = useState<ActionLog[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [view, setView] = useState<'preview' | 'profile' | 'cleaning'>('preview');
+  const [view, setView] = useState<'preview' | 'profile' | 'cleaning' | 'chat'>('chat');
   const [isQuickCleaning, setIsQuickCleaning] = useState(false);
   const [activeCleaningColumn, setActiveCleaningColumn] = useState<string | null>(null);
   const [showAuthModal, setShowAuthModal] = useState(false);
@@ -92,6 +92,7 @@ export default function App() {
       const profileData = await profileRes.json();
       setProfile(profileData);
       if (profileData) setActiveCleaningColumn(Object.keys(profileData)[0]);
+      setView('chat');
     } catch (err) { console.error(err); }
     finally { setIsProcessing(false); }
     setPastStates([]);
@@ -721,7 +722,12 @@ export default function App() {
                 </div>
                 <div className="px-6 mb-4"><h3 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Operations</h3></div>
                 <nav className="space-y-1">
-                  {([{id:'preview',label:'Data Preview',icon:LayoutDashboard},{id:'profile',label:'Profiling',icon:BarChart3},{id:'cleaning',label:'Cleaning',icon:Wand2}] as const).map(t => (
+                  {([
+                    {id:'chat',label:'AI Analyst',icon:Sparkles},
+                    {id:'preview',label:'Data Preview',icon:LayoutDashboard},
+                    {id:'profile',label:'Profiling',icon:BarChart3},
+                    {id:'cleaning',label:'Cleaning',icon:Wand2}
+                  ] as const).map(t => (
                     <button key={t.id} onClick={() => setView(t.id as any)}
                       className={`w-full flex items-center gap-3 px-6 py-3 text-sm font-medium transition-all ${view===t.id?'bg-[#1e293b] text-white border-l-4 border-[#2dd4bf]':'hover:bg-[#1e293b]/50 hover:text-white border-l-4 border-transparent'}`}>
                       <t.icon className="w-4 h-4" /> {t.label}
@@ -788,6 +794,29 @@ export default function App() {
               <div className="flex-1 flex overflow-hidden">
                 <div className="flex-1 overflow-y-auto p-8 custom-scrollbar">
                   <AnimatePresence mode="wait">
+                    {view === 'chat' && (
+                      <motion.div key="chat-view" initial={{opacity:0,y:10}} animate={{opacity:1,y:0}} exit={{opacity:0,y:-10}} className="h-full flex flex-col gap-6">
+                        <div className="flex-1 min-h-0">
+                          <ChatInterface 
+                            data={data} 
+                            profile={profile} 
+                            onApplyActions={handleApplyAIChatActions} 
+                          />
+                        </div>
+                        <div className="h-1/3 border-t border-slate-200 pt-6">
+                          <div className="flex items-center justify-between mb-4">
+                            <h3 className="text-sm font-bold text-[#0f172a] uppercase tracking-wider flex items-center gap-2">
+                              <FileSpreadsheet className="w-4 h-4 text-[#0d9488]" />
+                              Live Data Preview
+                            </h3>
+                            <button onClick={() => setView('preview')} className="text-[10px] font-bold text-[#0d9488] hover:underline uppercase">View Full Dataset</button>
+                          </div>
+                          <div className="h-full overflow-hidden rounded-xl border border-slate-200 shadow-inner">
+                            <DataPreview data={data.slice(0, 10)} />
+                          </div>
+                        </div>
+                      </motion.div>
+                    )}
                     {view === 'preview' && (
                       <motion.div key="pv" initial={{opacity:0,y:10}} animate={{opacity:1,y:0}} exit={{opacity:0,y:-10}}>
                         <section className="grid grid-cols-4 bg-[#e2e8f0] gap-[1px] border border-[#e2e8f0] rounded-lg overflow-hidden mb-8 shadow-sm">
@@ -828,18 +857,20 @@ export default function App() {
                   </AnimatePresence>
                 </div>
                 
-                <aside className="w-[400px] border-l border-[#e2e8f0] bg-[#f8fafc] flex flex-col shrink-0">
-                  <div className="flex-1 overflow-hidden p-4">
-                    <ChatInterface 
-                      data={data} 
-                      profile={profile} 
-                      onApplyActions={handleApplyAIChatActions} 
-                    />
-                  </div>
-                  <div className="p-4 pt-0">
-                    <ActionHistory history={history} onUndo={handleUndo} />
-                  </div>
-                </aside>
+                {view !== 'chat' && (
+                  <aside className="w-[400px] border-l border-[#e2e8f0] bg-[#f8fafc] flex flex-col shrink-0">
+                    <div className="flex-1 overflow-hidden p-4">
+                      <ChatInterface 
+                        data={data} 
+                        profile={profile} 
+                        onApplyActions={handleApplyAIChatActions} 
+                      />
+                    </div>
+                    <div className="p-4 pt-0">
+                      <ActionHistory history={history} onUndo={handleUndo} />
+                    </div>
+                  </aside>
+                )}
               </div>
 
               <footer className="h-16 flex items-center justify-between px-8 border-t border-[#e2e8f0] bg-white">
