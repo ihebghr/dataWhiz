@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useMemo } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Send, Sparkles, User, Bot, BarChart3, Wand2, Loader2, CheckCircle2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
@@ -78,10 +78,7 @@ const ChatSingleChart: React.FC<ChatSingleChartProps> = ({ chart, data }) => {
     pie: PieChart
   }[chart.type as 'bar' | 'line' | 'scatter' | 'area' | 'pie'] || BarChart;
 
-  const chartData = useMemo(() => 
-    aggregateData(data, chart.x, chart.y, chart.type),
-    [data, chart.x, chart.y, chart.type]
-  );
+  const chartData = aggregateData(data, chart.x, chart.y, chart.type);
 
   const colors = CHART_PALETTES.primary;
 

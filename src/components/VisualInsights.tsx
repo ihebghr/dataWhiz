@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React from 'react';
 import { motion } from 'motion/react';
 import { 
   BarChart, Bar, LineChart, Line, ScatterChart, Scatter, 
@@ -100,10 +100,7 @@ const SingleChart: React.FC<SingleChartProps> = ({ chart, data, charts }) => {
   }[chart.type as 'bar' | 'line' | 'scatter' | 'area' | 'pie'] || BarChart;
 
   // Aggregate and prepare data
-  const chartData = useMemo(() => 
-    aggregateData(data, chart.x, chart.y, chart.type),
-    [data, chart.x, chart.y, chart.type]
-  );
+  const chartData = aggregateData(data, chart.x, chart.y, chart.type);
 
   // Select palette based on chart index
   const paletteKey = Object.keys(CHART_PALETTES)[charts.indexOf(chart) % Object.keys(CHART_PALETTES).length] as keyof typeof CHART_PALETTES;
