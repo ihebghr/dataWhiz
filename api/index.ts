@@ -62,7 +62,7 @@ app.post("/api/upload", upload.single('file'), (req, res) => {
       const workbook = XLSX.read(fileBuffer, { type: 'buffer' });
       const sheetName = workbook.SheetNames[0];
       if (!sheetName) {
-         throw new Error("Excel file has no sheets");
+        throw new Error("Excel file has no sheets");
       }
       data = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName]);
     } 

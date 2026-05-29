@@ -5,7 +5,7 @@ import {
   AreaChart, Area, PieChart, Pie, Cell, LabelList,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer 
 } from 'recharts';
-import { LayoutGrid, Download, Trash2, PieChart as PieIcon, BarChart3, DollarSign, Users, FileText, Sparkles } from 'lucide-react';
+import { Download, Trash2, PieChart as PieIcon, BarChart3, DollarSign, Users, FileText, Sparkles } from 'lucide-react';
 
 interface VisualInsightsProps {
   charts: any[];
@@ -73,7 +73,7 @@ const aggregateData = (data: any[], xKey: string, yKey: string, chartType: strin
     const result = Object.values(grouped)
       .sort((a: any, b: any) => b[yKey] - a[yKey])
       .slice(0, 15); // Limit to top 15 for readability
-      
+    
     return result;
   }
 
@@ -239,7 +239,6 @@ const SingleChart: React.FC<SingleChartProps> = ({ chart, data, charts }) => {
 };
 
 export default function VisualInsights({ charts, data, profile, onRemoveChart }: VisualInsightsProps) {
-
   const getKeyStats = () => {
     if (!profile || !data) return [];
     const keys = Object.keys(profile);
@@ -263,7 +262,8 @@ export default function VisualInsights({ charts, data, profile, onRemoveChart }:
         </div>
         <div className="flex gap-3">
           <button className="flex items-center gap-2 px-5 py-2.5 bg-slate-900 text-white text-xs font-bold rounded-xl hover:bg-slate-800 transition-all uppercase tracking-widest shadow-lg hover:shadow-xl">
-            <Download className="w-4 h-4" /> Export All
+            <Download className="w-4 h-4" />
+            Export All
           </button>
         </div>
       </div>
@@ -282,7 +282,7 @@ export default function VisualInsights({ charts, data, profile, onRemoveChart }:
           </div>
           <h3 className="text-2xl font-bold text-slate-800 mb-3">No visualizations yet</h3>
           <p className="text-slate-500 max-w-md mb-8 leading-relaxed text-lg">
-            Ask the AI assistant a question like <span className="text-[#0d9488] font-semibold text-base">"Show me sales trends"</span> and your first visualization will appear here.
+            Ask the AI assistant a question like <span className="text-[#0d9488] font-semibold text-base">"Show me sales trends"</span> and your first visualization will appear here!
           </p>
         </div>
       ) : (
