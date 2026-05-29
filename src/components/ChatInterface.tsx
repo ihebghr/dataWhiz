@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useMemo } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { Send, Sparkles, User, Bot, BarChart3, Wand2, Loader2, CheckCircle2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
@@ -63,6 +63,138 @@ const aggregateData = (data: any[], xKey: string, yKey: string, chartType: strin
 
 const getGradientId = (color: string, index: number) => `chat-gradient-${color.replace('#', '')}-${index}`;
 
+// Single chart component for ChatInterface
+interface ChatSingleChartProps {
+  chart: any;
+  data: any[];
+}
+
+const ChatSingleChart: React.FC<ChatSingleChartProps> = ({ chart, data }) => {
+  const ChartComponent = {
+    bar: BarChart,
+    line: LineChart,
+    scatter: ScatterChart,
+    area: AreaChart,
+    pie: PieChart
+  }[chart.type as 'bar' | 'line' | 'scatter' | 'area' | 'pie'] || BarChart;
+
+  const chartData = useMemo(() => 
+    aggregateData(data, chart.x, chart.y, chart.type),
+    [data, chart.x, chart.y, chart.type]
+  );
+
+  const colors = CHART_PALETTES.primary;
+
+  return (
+    <div className="mt-4 p-5 bg-white/5 rounded-2xl border border-white/10 h-72 w-full">
+      <h4 className="text-sm font-semibold mb-4 text-white/80 flex items-center gap-2">
+        <Sparkles className="w-4 h-4 text-[#2dd4bf]" />
+        {chart.title || 'Data Visualization'}
+      </h4>
+      <ResponsiveContainer width="100%" height="85%" minWidth={250} minHeight={200}>
+        <ChartComponent data={chartData} margin={{ top: 10, right: 20, left: 30, bottom: 20 }}>
+          <defs>
+            {colors.map((color, i) => (
+              <linearGradient key={i} id={getGradientId(color, i)} x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor={color} stopOpacity={1}/>
+                <stop offset="100%" stopColor={color} stopOpacity={0.4}/>
+              </linearGradient>
+            ))}
+          </defs>
+          {chart.type !== 'pie' && <CartesianGrid strokeDasharray="4 4" stroke="#ffffff15" vertical={false} />}
+          {chart.type !== 'pie' && (
+            <XAxis 
+              dataKey={chart.x} 
+              stroke="#ffffff50" 
+              fontSize={10} 
+              tickLine={false}
+              axisLine={false}
+              tick={{ fill: '#cbd5e1', fontWeight: 500 }}
+              angle={-20}
+              textAnchor="end"
+              height={45}
+            />
+          )}
+          {chart.type !== 'pie' && (
+            <YAxis 
+              stroke="#ffffff50" 
+              fontSize={10} 
+              tickLine={false}
+              axisLine={false}
+              tick={{ fill: '#cbd5e1', fontWeight: 500 }}
+            />
+          )}
+          <Tooltip 
+            contentStyle={{ 
+              backgroundColor: '#0f172a', 
+              border: '1px solid #ffffff20', 
+              borderRadius: '12px',
+              boxShadow: '0 10px 25px rgba(0,0,0,0.3)'
+            }}
+            itemStyle={{ color: '#2dd4bf', fontWeight: 700 }}
+            labelStyle={{ color: '#e2e8f0', marginBottom: '8px', fontWeight: 600 }}
+          />
+          {chart.type !== 'pie' && <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '10px' }} />}
+          
+          {chart.type === 'pie' ? (
+            <Pie
+              data={chartData}
+              dataKey={chart.y}
+              nameKey={chart.x}
+              cx="50%"
+              cy="50%"
+              innerRadius={50}
+              outerRadius={75}
+              paddingAngle={6}
+              label={({ name, percent }) => `${name} (${(percent * 100).toFixed(0)}%)`}
+              labelLine={{ stroke: '#475569', strokeWidth: 1.5 }}
+              labelStyle={{ fill: '#cbd5e1', fontSize: '10px', fontWeight: 600 }}
+            >
+              {chartData.map((_, index) => (
+                <Cell key={`cell-${index}`} fill={colors[index % colors.length]} />
+              ))}
+            </Pie>
+          ) : chart.type === 'scatter' ? (
+            <Scatter name={chart.title} data={chartData}>
+              {chartData.map((entry, index) => (
+                <Scatter key={index} dataKey={chart.y} fill={colors[index % colors.length]} />
+              ))}
+            </Scatter>
+          ) : chart.type === 'area' ? (
+            <Area 
+              type="monotone" 
+              dataKey={chart.y} 
+              stroke={colors[0]} 
+              strokeWidth={3}
+              fillOpacity={1} 
+              fill={`url(#${getGradientId(colors[0], 0)})`}
+            />
+          ) : chart.type === 'line' ? (
+            <Line 
+              type="monotone" 
+              dataKey={chart.y} 
+              stroke={colors[0]} 
+              strokeWidth={3} 
+              dot={{ r: 5, fill: colors[0], strokeWidth: 2, stroke: '#0f172a' }} 
+              activeDot={{ r: 7, fill: colors[1] }}
+            />
+          ) : (
+            <Bar 
+              dataKey={chart.y} 
+              radius={[8, 8, 0, 0]} 
+              barSize={35}
+            >
+              {chartData.map((entry, index) => (
+                <Cell key={`cell-${index}`} fill={`url(#${getGradientId(colors[index % colors.length], index)})`} />
+              ))}
+            </Bar>
+          )}
+        </ChartComponent>
+      </ResponsiveContainer>
+    </div>
+  );
+};
+
 export default function ChatInterface({ data, profile, onApplyActions, onChartGenerated }: ChatInterfaceProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
@@ -118,130 +250,6 @@ export default function ChatInterface({ data, profile, onApplyActions, onChartGe
     } finally {
       setIsLoading(false);
     }
-  };
-
-  const renderChart = (chart: any) => {
-    if (!chart || !chart.type || !chart.x || !chart.y) return null;
-
-    const ChartComponent = {
-      bar: BarChart,
-      line: LineChart,
-      scatter: ScatterChart,
-      area: AreaChart,
-      pie: PieChart
-    }[chart.type as 'bar' | 'line' | 'scatter' | 'area' | 'pie'] || BarChart;
-
-    const chartData = useMemo(() => 
-      aggregateData(data, chart.x, chart.y, chart.type),
-      [data, chart.x, chart.y, chart.type]
-    );
-
-    const colors = CHART_PALETTES.primary;
-
-    return (
-      <div className="mt-4 p-5 bg-white/5 rounded-2xl border border-white/10 h-72 w-full">
-        <h4 className="text-sm font-semibold mb-4 text-white/80 flex items-center gap-2">
-          <Sparkles className="w-4 h-4 text-[#2dd4bf]" />
-          {chart.title || 'Data Visualization'}
-        </h4>
-        <ResponsiveContainer width="100%" height="85%">
-          <ChartComponent data={chartData} margin={{ top: 10, right: 20, left: 30, bottom: 20 }}>
-            <defs>
-              {colors.map((color, i) => (
-                <linearGradient key={i} id={getGradientId(color, i)} x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor={color} stopOpacity={1}/>
-                  <stop offset="100%" stopColor={color} stopOpacity={0.4}/>
-                </linearGradient>
-              ))}
-            </defs>
-            <CartesianGrid strokeDasharray="4 4" stroke="#ffffff15" vertical={false} />
-            <XAxis 
-              dataKey={chart.x} 
-              stroke="#ffffff50" 
-              fontSize={10} 
-              tickLine={false}
-              axisLine={false}
-              tick={{ fill: '#cbd5e1', fontWeight: 500 }}
-              angle={-20}
-              textAnchor="end"
-              height={45}
-            />
-            <YAxis 
-              stroke="#ffffff50" 
-              fontSize={10} 
-              tickLine={false}
-              axisLine={false}
-              tick={{ fill: '#cbd5e1', fontWeight: 500 }}
-            />
-            <Tooltip 
-              contentStyle={{ 
-                backgroundColor: '#0f172a', 
-                border: '1px solid #ffffff20', 
-                borderRadius: '12px',
-                boxShadow: '0 10px 25px rgba(0,0,0,0.3)'
-              }}
-              itemStyle={{ color: '#2dd4bf', fontWeight: 700 }}
-              labelStyle={{ color: '#e2e8f0', marginBottom: '8px', fontWeight: 600 }}
-            />
-            <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '10px' }} />
-            
-            {chart.type === 'pie' ? (
-              <Pie
-                data={chartData}
-                dataKey={chart.y}
-                nameKey={chart.x}
-                cx="50%"
-                cy="50%"
-                innerRadius={50}
-                outerRadius={75}
-                paddingAngle={6}
-                label={({ name, percent }) => `${name} (${(percent * 100).toFixed(0)}%)`}
-                labelLine={{ stroke: '#475569', strokeWidth: 1.5 }}
-                labelStyle={{ fill: '#cbd5e1', fontSize: '10px', fontWeight: 600 }}
-              >
-                {chartData.map((_, index) => (
-                  <Cell key={`cell-${index}`} fill={colors[index % colors.length]} />
-                ))}
-              </Pie>
-            ) : chart.type === 'scatter' ? (
-              <Scatter name={chart.title} data={chartData}>
-                {chartData.map((entry, index) => (
-                  <Scatter key={index} dataKey={chart.y} fill={colors[index % colors.length]} />
-                ))}
-              </Scatter>
-            ) : chart.type === 'area' ? (
-              <Area 
-                type="monotone" 
-                dataKey={chart.y} 
-                stroke={colors[0]} 
-                strokeWidth={3}
-                fillOpacity={1} 
-                fill={`url(#${getGradientId(colors[0], 0)})`}
-              />
-            ) : chart.type === 'line' ? (
-              <Line 
-                type="monotone" 
-                dataKey={chart.y} 
-                stroke={colors[0]} 
-                strokeWidth={3} 
-                dot={{ r: 5, fill: colors[0], strokeWidth: 2, stroke: '#0f172a' }} 
-                activeDot={{ r: 7, fill: colors[1] }}
-              />
-            ) : (
-              <Bar 
-                dataKey={chart.y} 
-                radius={[8, 8, 0, 0]} 
-                barSize={35}
-              >
-                {chartData.map((entry, index) => (
-                  <Cell key={`cell-${index}`} fill={`url(#${getGradientId(colors[index % colors.length], index)})`} />
-                ))}
-              </Bar>
-            )}
-          </ChartComponent>
-        </ResponsiveContainer>
-      </div>
-    );
   };
 
   return (
@@ -307,7 +315,7 @@ export default function ChatInterface({ data, profile, onApplyActions, onChartGe
                 {m.content}
               </div>
               
-              {m.chart && renderChart(m.chart)}
+              {m.chart && <ChatSingleChart chart={m.chart} data={data} />}
               
               {m.cleaningActions && m.cleaningActions.length > 0 && (
                 <div className="mt-3 p-4 bg-white/5 border border-white/10 rounded-2xl space-y-3">
@@ -318,7 +326,7 @@ export default function ChatInterface({ data, profile, onApplyActions, onChartGe
                   <div className="space-y-2">
                     {m.cleaningActions.map((action, idx) => (
                       <div key={idx} className="text-xs text-white/50 flex items-center gap-2 bg-white/5 p-2 rounded-lg">
-                        <div className="w-1.5 h-1.5 rounded-full bg-[#2dd4bf]"></div>
+                        <div className="w-1.5 h-1.5 rounded-full bg-[#2dd4bf]" />
                         {action.type.replace('_', ' ')}: {action.column || action.oldName}
                       </div>
                     ))}

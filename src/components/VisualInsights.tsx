@@ -83,47 +83,53 @@ const aggregateData = (data: any[], xKey: string, yKey: string, chartType: strin
     .slice(0, 50);
 };
 
-export default function VisualInsights({ charts, data, profile, onRemoveChart }: VisualInsightsProps) {
-  
-  const renderChart = (chart: any) => {
-    const ChartComponent = {
-      bar: BarChart,
-      line: LineChart,
-      scatter: ScatterChart,
-      area: AreaChart,
-      pie: PieChart
-    }[chart.type as 'bar' | 'line' | 'scatter' | 'area' | 'pie'] || BarChart;
+// Individual chart component
+interface SingleChartProps {
+  chart: any;
+  data: any[];
+  charts: any[];
+}
 
-    // Aggregate and prepare data
-    const chartData = useMemo(() => 
-      aggregateData(data, chart.x, chart.y, chart.type),
-      [data, chart.x, chart.y, chart.type]
-    );
+const SingleChart: React.FC<SingleChartProps> = ({ chart, data, charts }) => {
+  const ChartComponent = {
+    bar: BarChart,
+    line: LineChart,
+    scatter: ScatterChart,
+    area: AreaChart,
+    pie: PieChart
+  }[chart.type as 'bar' | 'line' | 'scatter' | 'area' | 'pie'] || BarChart;
 
-    // Select palette based on chart index
-    const paletteKey = Object.keys(CHART_PALETTES)[charts.indexOf(chart) % Object.keys(CHART_PALETTES).length] as keyof typeof CHART_PALETTES;
-    const colors = CHART_PALETTES[paletteKey];
+  // Aggregate and prepare data
+  const chartData = useMemo(() => 
+    aggregateData(data, chart.x, chart.y, chart.type),
+    [data, chart.x, chart.y, chart.type]
+  );
 
-    return (
-      <div className="h-80 w-full">
-        <ResponsiveContainer width="100%" height="100%">
-          <ChartComponent data={chartData} margin={{ top: 20, right: 30, left: 40, bottom: 30 }}>
-            {/* Define gradients for all colors */}
-            <defs>
-              {colors.map((color, i) => (
-                <linearGradient key={i} id={getGradientId(color, i)} x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor={color} stopOpacity={1}/>
-                  <stop offset="100%" stopColor={color} stopOpacity={0.4}/>
-                </linearGradient>
-              ))}
-              {/* Additional gradient for area charts */}
-              <linearGradient id="areaGradient" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor={colors[0]} stopOpacity={0.8}/>
-                <stop offset="100%" stopColor={colors[0]} stopOpacity={0.1}/>
+  // Select palette based on chart index
+  const paletteKey = Object.keys(CHART_PALETTES)[charts.indexOf(chart) % Object.keys(CHART_PALETTES).length] as keyof typeof CHART_PALETTES;
+  const colors = CHART_PALETTES[paletteKey];
+
+  return (
+    <div className="h-80 w-full">
+      <ResponsiveContainer width="100%" height="100%" minWidth={300} minHeight={300}>
+        <ChartComponent data={chartData} margin={{ top: 20, right: 30, left: 40, bottom: 30 }}>
+          {/* Define gradients for all colors */}
+          <defs>
+            {colors.map((color, i) => (
+              <linearGradient key={i} id={getGradientId(color, i)} x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor={color} stopOpacity={1}/>
+                <stop offset="100%" stopColor={color} stopOpacity={0.4}/>
               </linearGradient>
-            </defs>
-            
-            <CartesianGrid strokeDasharray="6 6" stroke="#e2e8f0" vertical={false} strokeWidth={1.5} />
+            ))}
+            {/* Additional gradient for area charts */}
+            <linearGradient id="areaGradient" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor={colors[0]} stopOpacity={0.8}/>
+              <stop offset="100%" stopColor={colors[0]} stopOpacity={0.1}/>
+            </linearGradient>
+          </defs>
+          
+          {chart.type !== 'pie' && <CartesianGrid strokeDasharray="6 6" stroke="#e2e8f0" vertical={false} strokeWidth={1.5} />}
+          {chart.type !== 'pie' && (
             <XAxis 
               dataKey={chart.x} 
               stroke="#64748b" 
@@ -136,6 +142,8 @@ export default function VisualInsights({ charts, data, profile, onRemoveChart }:
               textAnchor="end"
               height={60}
             />
+          )}
+          {chart.type !== 'pie' && (
             <YAxis 
               stroke="#64748b" 
               fontSize={11} 
@@ -144,91 +152,96 @@ export default function VisualInsights({ charts, data, profile, onRemoveChart }:
               tick={{ fill: '#475569', fontWeight: 600 }}
               width={50}
             />
-            <Tooltip 
-              contentStyle={{ 
-                backgroundColor: '#0f172a', 
-                border: 'none', 
-                borderRadius: '16px', 
-                boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
-                padding: '16px',
-                color: '#fff'
-              }}
-              itemStyle={{ color: colors[0], fontWeight: 700, fontSize: '13px' }}
-              labelStyle={{ color: '#cbd5e1', marginBottom: '10px', fontWeight: 700, fontSize: '14px' }}
-              cursor={{ fill: '#f8fafc' }}
-            />
+          )}
+          <Tooltip 
+            contentStyle={{ 
+              backgroundColor: '#0f172a', 
+              border: 'none', 
+              borderRadius: '16px', 
+              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
+              padding: '16px',
+              color: '#fff'
+            }}
+            itemStyle={{ color: colors[0], fontWeight: 700, fontSize: '13px' }}
+            labelStyle={{ color: '#cbd5e1', marginBottom: '10px', fontWeight: 700, fontSize: '14px' }}
+            cursor={{ fill: '#f8fafc' }}
+          />
+          {chart.type !== 'pie' && (
             <Legend 
               verticalAlign="top" 
               align="right" 
               iconType="circle" 
               wrapperStyle={{ fontSize: '13px', paddingBottom: '20px', fontWeight: 600 }}
             />
-            
-            {chart.type === 'pie' ? (
-              <Pie
-                data={chartData}
-                dataKey={chart.y}
-                nameKey={chart.x}
-                cx="50%"
-                cy="50%"
-                innerRadius={70}
-                outerRadius={100}
-                paddingAngle={8}
-                label={({ name, percent }) => `${name}\n(${(percent * 100).toFixed(0)}%)`}
-                labelLine={{ stroke: '#cbd5e1', strokeWidth: 2 }}
-                labelStyle={{ fill: '#334155', fontSize: '12px', fontWeight: 600 }}
-              >
-                {chartData.map((_, index) => (
-                  <Cell key={`cell-${index}`} fill={colors[index % colors.length]} />
-                ))}
-              </Pie>
-            ) : chart.type === 'scatter' ? (
-              <Scatter name={chart.title} data={chartData}>
-                {chartData.map((entry, index) => (
-                  <Scatter key={index} dataKey={chart.y} fill={colors[index % colors.length]}>
-                    <LabelList dataKey={chart.y} position="top" fill="#64748b" fontSize={10} fontWeight={600} />
-                  </Scatter>
-                ))}
-              </Scatter>
-            ) : chart.type === 'area' ? (
-              <Area 
-                type="monotone" 
-                dataKey={chart.y} 
-                stroke={colors[0]} 
-                strokeWidth={4}
-                fillOpacity={1} 
-                fill="url(#areaGradient)"
-              >
-                <LabelList dataKey={chart.y} position="top" fill="#475569" fontSize={11} fontWeight={700} />
-              </Area>
-            ) : chart.type === 'line' ? (
-              <Line 
-                type="monotone" 
-                dataKey={chart.y} 
-                stroke={colors[0]} 
-                strokeWidth={4} 
-                dot={{ r: 6, fill: colors[0], strokeWidth: 3, stroke: '#fff' }} 
-                activeDot={{ r: 8, fill: colors[1] }}
-              >
-                <LabelList dataKey={chart.y} position="top" fill="#475569" fontSize={11} fontWeight={700} />
-              </Line>
-            ) : (
-              <Bar 
-                dataKey={chart.y} 
-                radius={[12, 12, 0, 0]} 
-                barSize={40}
-              >
-                {chartData.map((entry, index) => (
-                  <Cell key={`cell-${index}`} fill={`url(#${getGradientId(colors[index % colors.length], index)})`} />
-                ))}
-                <LabelList dataKey={chart.y} position="top" fill="#475569" fontSize={11} fontWeight={700} />
-              </Bar>
-            )}
-          </ChartComponent>
-        </ResponsiveContainer>
-      </div>
-    );
-  };
+          )}
+          
+          {chart.type === 'pie' ? (
+            <Pie
+              data={chartData}
+              dataKey={chart.y}
+              nameKey={chart.x}
+              cx="50%"
+              cy="50%"
+              innerRadius={70}
+              outerRadius={100}
+              paddingAngle={8}
+              label={({ name, percent }) => `${name}\n(${(percent * 100).toFixed(0)}%)`}
+              labelLine={{ stroke: '#cbd5e1', strokeWidth: 2 }}
+              labelStyle={{ fill: '#334155', fontSize: '12px', fontWeight: 600 }}
+            >
+              {chartData.map((_, index) => (
+                <Cell key={`cell-${index}`} fill={colors[index % colors.length]} />
+              ))}
+            </Pie>
+          ) : chart.type === 'scatter' ? (
+            <Scatter name={chart.title} data={chartData}>
+              {chartData.map((entry, index) => (
+                <Scatter key={index} dataKey={chart.y} fill={colors[index % colors.length]}>
+                  <LabelList dataKey={chart.y} position="top" fill="#64748b" fontSize={10} fontWeight={600} />
+                </Scatter>
+              ))}
+            </Scatter>
+          ) : chart.type === 'area' ? (
+            <Area 
+              type="monotone" 
+              dataKey={chart.y} 
+              stroke={colors[0]} 
+              strokeWidth={4}
+              fillOpacity={1} 
+              fill="url(#areaGradient)"
+            >
+              <LabelList dataKey={chart.y} position="top" fill="#475569" fontSize={11} fontWeight={700} />
+            </Area>
+          ) : chart.type === 'line' ? (
+            <Line 
+              type="monotone" 
+              dataKey={chart.y} 
+              stroke={colors[0]} 
+              strokeWidth={4} 
+              dot={{ r: 6, fill: colors[0], strokeWidth: 3, stroke: '#fff' }} 
+              activeDot={{ r: 8, fill: colors[1] }}
+            >
+              <LabelList dataKey={chart.y} position="top" fill="#475569" fontSize={11} fontWeight={700} />
+            </Line>
+          ) : (
+            <Bar 
+              dataKey={chart.y} 
+              radius={[12, 12, 0, 0]} 
+              barSize={40}
+            >
+              {chartData.map((entry, index) => (
+                <Cell key={`cell-${index}`} fill={`url(#${getGradientId(colors[index % colors.length], index)})`} />
+              ))}
+              <LabelList dataKey={chart.y} position="top" fill="#475569" fontSize={11} fontWeight={700} />
+            </Bar>
+          )}
+        </ChartComponent>
+      </ResponsiveContainer>
+    </div>
+  );
+};
+
+export default function VisualInsights({ charts, data, profile, onRemoveChart }: VisualInsightsProps) {
 
   const getKeyStats = () => {
     if (!profile || !data) return [];
@@ -305,7 +318,7 @@ export default function VisualInsights({ charts, data, profile, onRemoveChart }:
                   <Trash2 className="w-5 h-5" />
                 </button>
               </div>
-              {renderChart(chart)}
+              <SingleChart chart={chart} data={data} charts={charts} />
             </motion.div>
           ))}
         </div>
